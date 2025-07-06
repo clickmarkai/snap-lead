@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Heritage & Culture Design System */
+
+@layer base {
+  :root {
+    --background: 36 44% 90%;
+    --foreground: 222 62% 15%;
+
+    --card: 28 100% 96%;
+    --card-foreground: 222 62% 15%;
+
+    --popover: 28 100% 96%;
+    --popover-foreground: 222 62% 15%;
+
+    --primary: 222 62% 15%;
+    --primary-foreground: 28 100% 96%;
+    --primary-glow: 50 80% 75%;
+
+    --secondary: 25 47% 56%;
+    --secondary-foreground: 28 100% 96%;
+
+    --muted: 32 54% 65%;
+    --muted-foreground: 224 51% 29%;
+
+    --accent: 50 80% 75%;
+    --accent-foreground: 222 62% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 62% 15%;
+    --input: 28 100% 96%;
+    --ring: 222 62% 15%;
+
+    /* Heritage-themed colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 43 48% 51%;
+    --warning-foreground: 0 0% 100%;
+    --info: 224 56% 25%;
+    --info-foreground: 0 0% 100%;
+    --camera: 25 47% 56%;
+    --camera-foreground: 0 0% 100%;
+
+    /* Heritage-themed gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-brown: linear-gradient(135deg, hsl(25 47% 56%), hsl(23 49% 46%));
+    --gradient-warm: linear-gradient(145deg, hsl(28 100% 96%), hsl(32 88% 89%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(36 82% 82%));
+
+    /* Warm shadows */
+    --shadow-soft: 0 4px 20px -2px hsl(var(--primary) / 0.15);
+    --shadow-medium: 0 8px 30px -4px hsl(var(--primary) / 0.2);
+    --shadow-strong: 0 20px 40px -8px hsl(var(--primary) / 0.25);
+    --shadow-glow: 0 0 40px hsl(var(--primary-glow) / 0.3);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 223 81% 11%;
+    --foreground: 28 100% 96%;
+
+    --card: 224 51% 29%;
+    --card-foreground: 28 100% 96%;
+
+    --popover: 224 51% 29%;
+    --popover-foreground: 28 100% 96%;
+
+    --primary: 50 80% 75%;
+    --primary-foreground: 223 81% 11%;
+    --primary-glow: 42 48% 46%;
+
+    --secondary: 25 47% 56%;
+    --secondary-foreground: 223 81% 11%;
+
+    --muted: 22 49% 35%;
+    --muted-foreground: 32 54% 65%;
+
+    --accent: 43 48% 51%;
+    --accent-foreground: 223 81% 11%;
+
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 28 100% 96%;
+
+    --border: 50 80% 75%;
+    --input: 224 51% 29%;
+    --ring: 50 80% 75%;
+    --camera: 25 47% 56%;
+    --camera-foreground: 0 0% 100%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Enhanced visibility for form controls */
+  .form-control-enhanced {
+    @apply border-2 border-primary/30 focus:border-primary transition-colors;
+  }
+  
+  /* Select components with enhanced borders */
+  [data-radix-select-trigger] {
+    @apply border-2 border-primary/30 focus:border-primary shadow-sm;
+  }
+  
+  /* Input components with enhanced borders */
+  input[type="search"],
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"] {
+    @apply border-2 border-primary/30 focus:border-primary shadow-sm;
+  }
+  
+  /* Specific styling for dashboard filters */
+  .dashboard-filters input,
+  .dashboard-filters [data-radix-select-trigger] {
+    @apply border-2 border-primary/40 hover:border-primary/60 focus:border-primary shadow-sm;
+  }
+  
+  /* Enhanced button borders for navigation */
+  .nav-button {
+    @apply border-2 border-primary/30 hover:border-primary/50;
+  }
+}
