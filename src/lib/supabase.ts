@@ -1,12 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
-
-// Supabase configuration
-// TODO: Replace these with your actual DELIFRU project credentials from Supabase Dashboard → Settings → API
-const supabaseUrl = 'https://wfbkmozimmfmoiwuopwj.supabase.co' // Replace with your Project URL
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndmYmttb3ppbW1mbW9pd3VvcHdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE2MDE0OTEsImV4cCI6MjA2NzE3NzQ5MX0.abbtJtYhUrUXE5l5QssCifUujnOWboCU231iKN4tZrg' // Replace with your anon public key
+import { config, features } from './config'
 
 // Create Supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(config.supabase.url, config.supabase.anonKey)
 
 // Database types for better TypeScript support
 export interface Lead {
@@ -56,8 +52,6 @@ export interface Database {
 
 // Helper functions for database operations
 export const createLead = async (leadData: Omit<Lead, 'id' | 'created_at'>) => {
-  console.log('Attempting to create lead with data:', leadData)
-  
   const { data, error } = await supabase
     .from('leads')
     .insert([leadData])
@@ -65,14 +59,9 @@ export const createLead = async (leadData: Omit<Lead, 'id' | 'created_at'>) => {
     .single()
 
   if (error) {
-    console.error('Supabase error details:', error)
-    console.error('Error code:', error.code)
-    console.error('Error message:', error.message)
-    console.error('Error details:', error.details)
     throw new Error(`Database error: ${error.message} (Code: ${error.code})`)
   }
   
-  console.log('Lead created successfully:', data)
   return data
 }
 
@@ -110,8 +99,6 @@ export const getLeads = async () => {
 // Image Storage Functions
 export const uploadLeadImage = async (imageBlob: Blob, leadId: string): Promise<string> => {
   try {
-    console.log('Uploading image for lead:', leadId)
-    
     // Generate unique filename
     const timestamp = new Date().getTime()
     const filename = `lead-${leadId}-${timestamp}.jpg`
@@ -126,22 +113,17 @@ export const uploadLeadImage = async (imageBlob: Blob, leadId: string): Promise<
       })
 
     if (error) {
-      console.error('Storage upload error:', error)
       throw new Error(`Failed to upload image: ${error.message}`)
     }
-
-    console.log('Image uploaded successfully:', data.path)
 
     // Get public URL for the uploaded image
     const { data: urlData } = supabase.storage
       .from('lead-images')
       .getPublicUrl(data.path)
 
-    console.log('Public URL generated:', urlData.publicUrl)
     return urlData.publicUrl
 
   } catch (error) {
-    console.error('Error uploading lead image:', error)
     throw error
   }
 }
@@ -151,21 +133,16 @@ export const deleteLeadImage = async (imageUrl: string): Promise<void> => {
     // Extract filename from URL
     const urlParts = imageUrl.split('/')
     const filename = urlParts[urlParts.length - 1]
-    
-    console.log('Deleting image:', filename)
 
     const { error } = await supabase.storage
       .from('lead-images')
       .remove([filename])
 
     if (error) {
-      console.error('Storage delete error:', error)
       throw new Error(`Failed to delete image: ${error.message}`)
     }
 
-    console.log('Image deleted successfully')
   } catch (error) {
-    console.error('Error deleting lead image:', error)
     throw error
   }
 }
@@ -174,8 +151,6 @@ export const createLeadWithImage = async (
   leadData: Omit<Lead, 'id' | 'created_at' | 'image_url'>, 
   imageBlob?: Blob
 ): Promise<Lead> => {
-  console.log('Creating lead with image data:', leadData)
-  
   try {
     // First, create the lead without image
     const newLead = await createLead(leadData)
@@ -184,7 +159,6 @@ export const createLeadWithImage = async (
     
     // If image is provided, upload it and update the lead
     if (imageBlob) {
-      console.log('Uploading image for new lead:', newLead.id)
       const imageUrl = await uploadLeadImage(imageBlob, newLead.id)
       
       // Update lead with image URL
@@ -197,7 +171,6 @@ export const createLeadWithImage = async (
     
     return finalLead
   } catch (error) {
-    console.error('Error creating lead with image:', error)
     throw error
   }
 }
@@ -223,8 +196,6 @@ export const uploadSyrupPhoto = async (
   tags?: string[]
 ): Promise<SyrupPhoto> => {
   try {
-    console.log('Uploading syrup bottle photo...')
-    
     // Generate unique filename
     const timestamp = new Date().getTime()
     const fileExtension = originalName?.split('.').pop() || 'jpg'
@@ -240,11 +211,8 @@ export const uploadSyrupPhoto = async (
       })
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError)
       throw new Error(`Failed to upload syrup photo: ${uploadError.message}`)
     }
-
-    console.log('Syrup photo uploaded successfully:', uploadData.path)
 
     // Get public URL for the uploaded image
     const { data: urlData } = supabase.storage
@@ -288,17 +256,12 @@ export const uploadSyrupPhoto = async (
         }
       })
       
-      // Log comparison with working leads table
-      console.log('For comparison, this works fine with leads table. Check policies!')
-      
       throw new Error(`Failed to record syrup photo: ${dbError.message} (Code: ${dbError.code})`)
     }
 
-    console.log('Syrup photo recorded in database:', dbData.id)
     return dbData
 
   } catch (error) {
-    console.error('Error uploading syrup photo:', error)
     throw error
   }
 }
@@ -321,13 +284,11 @@ export const getSyrupPhotos = async (limit?: number, offset?: number): Promise<S
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching syrup photos:', error)
       throw error
     }
 
     return data || []
   } catch (error) {
-    console.error('Error getting syrup photos:', error)
     throw error
   }
 }
@@ -341,13 +302,11 @@ export const getSyrupPhotoById = async (id: string): Promise<SyrupPhoto | null> 
       .single()
 
     if (error) {
-      console.error('Error fetching syrup photo:', error)
       throw error
     }
 
     return data
   } catch (error) {
-    console.error('Error getting syrup photo by ID:', error)
     throw error
   }
 }
@@ -366,7 +325,6 @@ export const deleteSyrupPhoto = async (id: string): Promise<void> => {
       .remove([photo.file_path])
 
     if (storageError) {
-      console.error('Storage delete error:', storageError)
       throw new Error(`Failed to delete syrup photo from storage: ${storageError.message}`)
     }
 
@@ -377,13 +335,10 @@ export const deleteSyrupPhoto = async (id: string): Promise<void> => {
       .eq('id', id)
 
     if (dbError) {
-      console.error('Database delete error:', dbError)
       throw new Error(`Failed to delete syrup photo from database: ${dbError.message}`)
     }
 
-    console.log('Syrup photo deleted successfully:', id)
   } catch (error) {
-    console.error('Error deleting syrup photo:', error)
     throw error
   }
 }
@@ -407,14 +362,14 @@ export const getSyrupPhotosForN8N = async (): Promise<any[]> => {
       metadata: photo.metadata
     }))
   } catch (error) {
-    console.error('Error getting syrup photos for N8N:', error)
     throw error
   }
 }
 
-// N8N Webhook Integration
-const N8N_WEBHOOK_URL = 'https://primary-production-b68a.up.railway.app/webhook/gen-ai'
-const N8N_ANALYZE_URL = 'https://primary-production-b68a.up.railway.app/webhook/analyze'
+// N8N Webhook Integration from configuration
+const N8N_WEBHOOK_URL = config.n8n.webhookUrl
+// const N8N_WEBHOOK_URL = 'https://primary-production-b68a.up.railway.app/webhook-test/gen-ai'
+const N8N_ANALYZE_URL = config.n8n.analyzeUrl
 
 export const sendToN8NWebhook = async (
   email: string, 
@@ -427,9 +382,13 @@ export const sendToN8NWebhook = async (
   category: string,
   analysisResults?: any,
   drinkDescription?: string
-): Promise<void> => {
+): Promise<string | null> => {
+  // Check if N8N integration is enabled
+  if (!features.aiAnalysis || !N8N_WEBHOOK_URL) {
+    return null
+  }
+
   try {
-    console.log('Sending all customer data to N8N webhook...')
     
     // Create FormData to send binary data and all customer information
     const formData = new FormData()
@@ -459,18 +418,80 @@ export const sendToN8NWebhook = async (
     
     const response = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
-      body: formData,
+      body: formData
+      // No timeout - let N8N workflow complete regardless of how long it takes
     })
 
     if (!response.ok) {
       throw new Error(`N8N webhook failed: ${response.status} ${response.statusText}`)
     }
 
-    console.log('Successfully sent all customer data to N8N webhook')
+    // Check if response contains image data
+    const contentType = response.headers.get('content-type')
+    
+    if (contentType && contentType.startsWith('image/')) {
+      // Response is an image, convert to base64 data URL
+      const imageBlob = await response.blob()
+      const reader = new FileReader()
+      return new Promise((resolve) => {
+        reader.onloadend = () => {
+          resolve(reader.result as string)
+        }
+        reader.readAsDataURL(imageBlob)
+      })
+    } else {
+      // Try to get JSON response or text response
+      const responseText = await response.text()
+      
+      // Check if response is empty
+      if (!responseText || responseText.trim() === '') {
+        return null
+      }
+      
+      // Check if response contains image URL or base64 data
+      try {
+        const jsonResponse = JSON.parse(responseText)
+        
+        if (Array.isArray(jsonResponse)) {
+          // Handle OpenAI DALL-E response format: [{ data: [{ b64_json: "..." }] }]
+          if (jsonResponse.length > 0 && jsonResponse[0].data && Array.isArray(jsonResponse[0].data)) {
+            const firstDataItem = jsonResponse[0].data[0]
+            if (firstDataItem && firstDataItem.b64_json) {
+              const base64Data = firstDataItem.b64_json
+              // Convert raw base64 to data URL format
+              const dataUrl = `data:image/png;base64,${base64Data}`
+              return dataUrl
+            }
+          }
+        } else {
+          // Handle Supabase storage upload response: { Key: "...", Id: "..." }
+          if (jsonResponse.Key) {
+            // Construct public URL from storage key
+            const supabaseUrl = config.supabase.url
+            const publicUrl = `${supabaseUrl}/storage/v1/object/public/${jsonResponse.Key}`
+            return publicUrl
+          }
+        }
+        
+        // Check for standard image fields
+        if (jsonResponse.image || jsonResponse.imageUrl || jsonResponse.base64) {
+          const imageData = jsonResponse.image || jsonResponse.imageUrl || jsonResponse.base64
+          return imageData
+        }
+      } catch (e) {
+        // Not JSON, might be direct base64 or URL
+        if (responseText.startsWith('data:image/') || responseText.startsWith('http')) {
+          return responseText
+        }
+      }
+    }
+    
+    return null
     
   } catch (error) {
-    console.error('Error sending to N8N webhook:', error)
     // Don't throw error - webhook failure shouldn't block lead creation
+    // In production, you might want to queue this for retry
+    return null
   }
 }
 
@@ -483,9 +504,12 @@ export const analyzeImageWithN8N = async (
   coffeePreference: string,
   alcoholPreference: string
 ): Promise<any> => {
+  // Check if N8N integration is enabled
+  if (!features.aiAnalysis || !N8N_ANALYZE_URL) {
+    throw new Error('N8N analysis not configured')
+  }
+
   try {
-    console.log('Sending image for analysis to N8N...')
-    
     // Create FormData to send binary image data
     const formData = new FormData()
     formData.append('image', imageBlob, 'capture.jpg')
@@ -500,19 +524,20 @@ export const analyzeImageWithN8N = async (
     const response = await fetch(N8N_ANALYZE_URL, {
       method: 'POST',
       body: formData,
+      // Add timeout for production reliability
+      signal: AbortSignal.timeout(60000) // 60 second timeout for image analysis
     })
 
     if (!response.ok) {
-      throw new Error(`N8N analysis failed: ${response.status} ${response.statusText}`)
+      const errorText = await response.text()
+      throw new Error(`N8N analysis failed: ${response.status} ${response.statusText} - ${errorText}`)
     }
 
     const result = await response.json()
-    console.log('Successfully received analysis from N8N:', result)
     
     return result
     
   } catch (error) {
-    console.error('Error analyzing image with N8N:', error)
     throw error
   }
 }
@@ -520,8 +545,6 @@ export const analyzeImageWithN8N = async (
 // Drink Menu Functions
 export const getDrinkByName = async (name: string): Promise<DrinkMenu | null> => {
   try {
-    console.log('Fetching drink details for:', name)
-    
     const { data, error } = await supabase
       .from('drink_menu')
       .select('*')
@@ -530,14 +553,11 @@ export const getDrinkByName = async (name: string): Promise<DrinkMenu | null> =>
       .single()
 
     if (error) {
-      console.error('Error fetching drink details:', error)
       return null
     }
 
-    console.log('Drink details found:', data)
     return data
   } catch (error) {
-    console.error('Error getting drink by name:', error)
     return null
   }
 }
@@ -545,21 +565,17 @@ export const getDrinkByName = async (name: string): Promise<DrinkMenu | null> =>
 // Test Supabase connection
 export const testConnection = async () => {
   try {
-    console.log('Testing Supabase connection...')
     const { data, error } = await supabase
       .from('leads')
       .select('id')
       .limit(1)
 
     if (error) {
-      console.error('Connection test failed:', error)
       return { success: false, error: error.message }
     }
 
-    console.log('Connection test successful - table exists and is accessible')
     return { success: true, data }
   } catch (error) {
-    console.error('Connection test error:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 } 

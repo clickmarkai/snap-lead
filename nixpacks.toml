@@ -1,0 +1,13 @@
+[phases.build]
+cmds = ["npm ci", "npm run build:prod"]
+
+[phases.start]
+cmd = "npm start"
+
+[variables]
+NODE_ENV = "production"
+PORT = "8080"
+
+[staticAssets]
+# Serve static assets from the build directory
+"dist" = "/" 

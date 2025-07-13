@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createLead, analyzeImageWithN8N, getDrinkByName, DrinkMenu, base64ToBlob, sendToN8NWebhook } from '@/lib/supabase';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface CameraCaptureProps {
   onPhotoTaken?: (photoData: string) => void;
@@ -37,9 +38,14 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
   const [analysisFailed, setAnalysisFailed] = useState(false);
   const [drinkDetails, setDrinkDetails] = useState<DrinkMenu | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>('');
+  const [showAnalysisResults, setShowAnalysisResults] = useState(false);
   const [showLeadForm, setShowLeadForm] = useState(false);
+  const [showProcessingScreen, setShowProcessingScreen] = useState(false);
+  const [showResponseImage, setShowResponseImage] = useState(false);
+  const [n8nResponseImage, setN8nResponseImage] = useState<string | null>(null);
   const [showThankYou, setShowThankYou] = useState(false);
   const [preCaptureCompleted, setPreCaptureCompleted] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
   const [preCaptureData, setPreCaptureData] = useState<PreCaptureFormData>({
     name: '',
     gender: '',
@@ -105,7 +111,6 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
           
           // Add error handler for video element
           videoRef.current.onerror = (error) => {
-            console.error('Video element error:', error);
             setDebugInfo('Video element error occurred');
             setIsLoading(false);
           };
@@ -117,7 +122,6 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       }, 100); // Small delay to ensure video element is rendered
       
     } catch (error) {
-      console.error('Error accessing camera:', error);
       setDebugInfo(`Camera error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setIsLoading(false);
       setIsActive(false);
@@ -134,9 +138,14 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     setCapturedPhoto(null);
     setAnalysisResults(null);
     setDrinkDetails(null);
+    setShowAnalysisResults(false);
     setShowLeadForm(false);
+    setShowProcessingScreen(false);
+    setShowResponseImage(false);
+    setN8nResponseImage(null);
     setShowThankYou(false);
     setPreCaptureCompleted(false);
+    setCurrentStep(1);
     setPreCaptureData({
       name: '',
       gender: '',
@@ -150,7 +159,11 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     setAnalysisResults(null);
     setDrinkDetails(null);
     setAnalysisFailed(false);
+    setShowAnalysisResults(false);
     setShowLeadForm(false);
+    setShowProcessingScreen(false);
+    setShowResponseImage(false);
+    setN8nResponseImage(null);
     setIsActive(true); // Set active first to render video element
     
     try {
@@ -167,7 +180,6 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
         streamRef.current = stream;
       }
     } catch (error) {
-      console.error('Error accessing camera during retake:', error);
       setIsActive(false); // Reset if error occurs
       showAlert("destructive", "Camera Error", "Unable to restart camera. Please try again.");
     }
@@ -192,37 +204,64 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     // Convert to base64
     const photoData = canvas.toDataURL('image/jpeg', 0.8);
     setCapturedPhoto(photoData);
-    onPhotoTaken?.(photoData);
-
-    // Stop the camera stream after capturing
+    
+    // Stop camera stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
     setIsActive(false);
+    
+    // Trigger callback
+    onPhotoTaken?.(photoData);
   }, [onPhotoTaken]);
 
-  const validateAndCompletePreCapture = useCallback(() => {
-    if (!preCaptureData.name || !preCaptureData.gender || !preCaptureData.coffeePreference || !preCaptureData.alcoholPreference) {
-      showAlert("destructive", "Missing Information", "Please fill in all required fields: Name, Gender, Coffee and Drink preferences.");
-      return;
+  const handleStepNext = useCallback(() => {
+    if (currentStep === 1) {
+      if (!preCaptureData.name.trim()) {
+        showAlert("destructive", "Name Required", "Please enter your name.");
+        return;
+      }
+      setCurrentStep(2);
+    } else if (currentStep === 2) {
+      if (!preCaptureData.gender) {
+        showAlert("destructive", "Gender Required", "Please select your gender.");
+        return;
+      }
+      setCurrentStep(3);
+    } else if (currentStep === 3) {
+      if (!preCaptureData.coffeePreference) {
+        showAlert("destructive", "Coffee Preference Required", "Please select your coffee preference.");
+        return;
+      }
+      setCurrentStep(4);
+    } else if (currentStep === 4) {
+      if (!preCaptureData.alcoholPreference) {
+        showAlert("destructive", "Drink Preference Required", "Please select your drink preference.");
+        return;
+      }
+      setPreCaptureCompleted(true);
+      showAlert("default", "Preferences Saved", "Now you can take a photo.");
     }
-    
-    setPreCaptureCompleted(true);
-    showAlert("default", "Preferences Saved", "Now you can take a photo.");
-  }, [preCaptureData.name, preCaptureData.gender, preCaptureData.coffeePreference, preCaptureData.alcoholPreference, showAlert]);
+  }, [currentStep, preCaptureData, showAlert]);
 
-  const constructCategory = useCallback((coffeePreference: string, alcoholPreference: string): string => {
-    if (coffeePreference === 'non-coffee' && alcoholPreference === 'non-alcohol') {
-      return 'Non-Coffee Mocktail';
+  const handleStepPrev = useCallback(() => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  }, [currentStep]);
+
+  const constructCategory = useCallback((coffeePreference: string, alcoholPreference: string) => {
+    if (coffeePreference === 'coffee' && alcoholPreference === 'cocktail') {
+      return 'Coffee Cocktail';
     } else if (coffeePreference === 'coffee' && alcoholPreference === 'non-alcohol') {
       return 'Coffee Mocktail';
-    } else if (coffeePreference === 'coffee' && alcoholPreference === 'cocktail') {
-      return 'Coffee Cocktail';
     } else if (coffeePreference === 'non-coffee' && alcoholPreference === 'cocktail') {
       return 'Non-Coffee Cocktail';
+    } else if (coffeePreference === 'non-coffee' && alcoholPreference === 'non-alcohol') {
+      return 'Non-Coffee Mocktail';
     }
-    return 'Unknown Category'; // fallback
+    return 'Coffee Mocktail'; // fallback to most common case
   }, []);
 
   const saveLead = useCallback(async () => {
@@ -237,8 +276,6 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     let analysisSuccessful = false;
     
     try {
-      console.log('Starting image analysis...');
-      
       // Convert base64 to Blob for N8N analysis
       const imageBlob = base64ToBlob(capturedPhoto, 'image/jpeg');
       
@@ -258,7 +295,6 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       if (analysisResults) {
         setAnalysisResults(analysisResults);
         analysisSuccessful = true;
-        console.log('Analysis complete, proceeding to form...');
         
         // Fetch drink details if drink name is available
         if (analysisResults.drink) {
@@ -266,18 +302,15 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
             const drinkInfo = await getDrinkByName(analysisResults.drink);
             setDrinkDetails(drinkInfo);
           } catch (error) {
-            console.error('Error fetching drink details:', error);
             setDrinkDetails(null);
           }
         }
       } else {
         setAnalysisResults(null);
         setAnalysisFailed(true);
-        console.log('Analysis returned empty result');
       }
       
     } catch (error) {
-      console.error('Error during image analysis:', error);
       showAlert("destructive", "Analysis Failed", "Analysis failed. Please try again or proceed manually.");
       
       setAnalysisResults(null);
@@ -285,9 +318,9 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       analysisSuccessful = false;
     } finally {
       setIsAnalyzing(false);
-      // Only proceed to lead form if analysis was successful
+      // Only proceed to show analysis results if analysis was successful
       if (analysisSuccessful) {
-        setShowLeadForm(true);
+        setShowAnalysisResults(true);
       }
       // If analysis failed, stay on photo preview
     }
@@ -295,18 +328,106 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
 
   const proceedToLeadForm = useCallback(() => {
     setAnalysisFailed(false);
+    setShowAnalysisResults(false);
     setShowLeadForm(true);
   }, []);
 
+  const sendImageToUser = useCallback(async () => {
+    setIsProcessing(true);
+    
+    try {
+      // Construct category for the request
+      const category = constructCategory(preCaptureData.coffeePreference, preCaptureData.alcoholPreference);
+      
+      // Create FormData to send all data including the generated image
+      const formData = new FormData();
+      
+      // Add core user information
+      formData.append('email', leadFormData.email);
+      formData.append('name', preCaptureData.name);
+      formData.append('whatsapp', leadFormData.whatsapp);
+      
+      // Add user preferences
+      formData.append('gender', preCaptureData.gender);
+      formData.append('coffeePreference', preCaptureData.coffeePreference);
+      formData.append('alcoholPreference', preCaptureData.alcoholPreference);
+      formData.append('category', category);
+      
+      // Add analysis results if available
+      if (analysisResults) {
+        formData.append('analysisResults', JSON.stringify(analysisResults));
+        if (analysisResults.mood) formData.append('mood', analysisResults.mood);
+        if (analysisResults.age) formData.append('age', analysisResults.age);
+        if (analysisResults.drink) formData.append('recommendedDrink', analysisResults.drink);
+      }
+      
+      // Add drink description if available
+      if (drinkDetails?.description) {
+        formData.append('drinkDescription', drinkDetails.description);
+      }
+      
+      // Add timestamp
+      formData.append('timestamp', new Date().toISOString());
+      
+      // Add the generated image
+      if (n8nResponseImage) {
+        if (n8nResponseImage.startsWith('data:')) {
+          // Convert data URL to blob
+          const response = await fetch(n8nResponseImage);
+          const imageBlob = await response.blob();
+          formData.append('generatedImage', imageBlob, 'generated-image.png');
+        } else if (n8nResponseImage.startsWith('http')) {
+          // If it's a URL, download and attach the image
+          try {
+            const imageResponse = await fetch(n8nResponseImage);
+            if (imageResponse.ok) {
+              const imageBlob = await imageResponse.blob();
+              formData.append('generatedImage', imageBlob, 'generated-image.png');
+            } else {
+              // If download fails, just send the URL
+              formData.append('generatedImageUrl', n8nResponseImage);
+            }
+          } catch (downloadError) {
+            formData.append('generatedImageUrl', n8nResponseImage);
+          }
+        }
+      }
+      
+      // Send to webhook with FormData
+      const response = await fetch('https://primary-production-b68a.up.railway.app/webhook/send', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Webhook failed: ${response.status} ${response.statusText}`);
+      }
+      
+      // Proceed to thank you screen
+      setShowResponseImage(false);
+      setShowThankYou(true);
+      onLeadSaved?.();
+      
+    } catch (error) {
+      showAlert("destructive", "Send Failed", "Failed to send your information. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [leadFormData, preCaptureData, analysisResults, drinkDetails, n8nResponseImage, constructCategory, showAlert, onLeadSaved]);
+
   const resetForNextCustomer = useCallback(() => {
-    console.log('Resetting for next customer - returning to preferences page');
     // Reset everything for next customer
     setCapturedPhoto(null);
     setAnalysisResults(null);
     setDrinkDetails(null);
+    setShowAnalysisResults(false);
     setShowLeadForm(false);
+    setShowProcessingScreen(false);
+    setShowResponseImage(false);
+    setN8nResponseImage(null);
     setShowThankYou(false);
     setPreCaptureCompleted(false);
+    setCurrentStep(1);
     setPreCaptureData({
       name: '',
       gender: '',
@@ -317,17 +438,13 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       email: '',
       whatsapp: ''
     });
-    console.log('Reset complete - should now show preferences page');
   }, []);
 
   // Auto-redirect after showing thank you screen
   useEffect(() => {
     if (showThankYou) {
-      console.log('Thank you screen activated, redirecting in 5 seconds');
-      
       // Simple 5-second timer
       const redirectTimer = setTimeout(() => {
-        console.log('5 seconds elapsed, resetting for next customer');
         resetForNextCustomer();
       }, 5000);
 
@@ -338,11 +455,12 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
   const saveLeadToDatabase = useCallback(async () => {
     if (!capturedPhoto) return;
 
+    // Show processing screen immediately
+    setShowLeadForm(false);
+    setShowProcessingScreen(true);
     setIsProcessing(true);
     
     try {
-      console.log('Processing customer data and sending to N8N...');
-      
       // Convert base64 to Blob for N8N webhook
       const imageBlob = base64ToBlob(capturedPhoto, 'image/jpeg');
       
@@ -361,57 +479,70 @@ Gender: ${preCaptureData.gender}
 Coffee Preference: ${preCaptureData.coffeePreference}
 Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
       });
-
-      // Send all customer data to N8N webhook
-      await sendToN8NWebhook(
-        leadFormData.email,
-        leadFormData.whatsapp,
-        imageBlob,
-        preCaptureData.name,
-        preCaptureData.gender,
-        preCaptureData.coffeePreference,
-        preCaptureData.alcoholPreference,
-        category,
-        analysisResults,
-        drinkDetails?.description || undefined
-      );
-
-      console.log('Data saved successfully, showing thank you screen');
       
-      // Show thank you screen instead of resetting immediately
-      setShowLeadForm(false);
-      setShowThankYou(true);
-      
-      console.log('Thank you screen should now be visible, showThankYou=true');
-      onLeadSaved?.();
+      // Send all customer data to N8N webhook and wait for response
+      try {
+        const responseImage = await sendToN8NWebhook(
+          leadFormData.email,
+          leadFormData.whatsapp,
+          imageBlob,
+          preCaptureData.name,
+          preCaptureData.gender,
+          preCaptureData.coffeePreference,
+          preCaptureData.alcoholPreference,
+          category,
+          analysisResults,
+          drinkDetails?.description || undefined
+        );
+        
+        // Hide processing screen
+        setShowProcessingScreen(false);
+        
+        // If we received an image response, show it
+        if (responseImage) {
+          setN8nResponseImage(responseImage);
+          setShowResponseImage(true);
+          // Note: No auto-advance, waiting for user confirmation
+        } else {
+          setShowThankYou(true);
+          onLeadSaved?.();
+        }
+      } catch (webhookError) {
+        // Hide processing screen and proceed to thank you screen even if webhook fails
+        setShowProcessingScreen(false);
+        setShowThankYou(true);
+      }
       
     } catch (error) {
-      console.error('Error saving customer data:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       showAlert("destructive", "Save Failed", `Failed to save your information: ${errorMessage}`);
+      
+      // Hide processing screen and return to lead form on error
+      setShowProcessingScreen(false);
+      setShowLeadForm(true);
     } finally {
       setIsProcessing(false);
     }
-  }, [capturedPhoto, leadFormData, showAlert, onLeadSaved]);
+  }, [capturedPhoto, leadFormData, showAlert, onLeadSaved, preCaptureData, analysisResults, drinkDetails, constructCategory]);
 
   return (
     <div className="space-y-8 lg:space-y-12">
       {/* Centralized Alert Container at the Top */}
-      {(currentAlert || (showLeadForm && !analysisResults)) && (
+      {currentAlert && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md mx-auto px-4">
-          <Alert 
-            variant={currentAlert?.type || "warning"} 
-            className="shadow-lg relative"
-          >
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              <div className="font-medium mb-1">
-                {currentAlert?.title || "Analysis Unavailable"}
-              </div>
-              <div className="text-sm opacity-90">
-                {currentAlert?.description || "The AI analysis could not be completed, but you can still save your information."}
-              </div>
-            </AlertDescription>
+                      <Alert 
+              variant={currentAlert.type} 
+              className="shadow-lg relative"
+            >
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="font-medium mb-1">
+                  {currentAlert.title}
+                </div>
+                <div className="text-sm opacity-90">
+                  {currentAlert.description}
+                </div>
+              </AlertDescription>
             <Button
               variant="ghost"
               size="sm"
@@ -428,105 +559,183 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
         <CardContent className="p-8 lg:p-12">
           <div className="space-y-4">
 
-            {/* Pre-Capture Form - First Step */}
-            {!preCaptureCompleted && !isActive && !capturedPhoto && !showLeadForm && !showThankYou && (
+            {/* Pre-Capture Form - Step by Step */}
+            {!preCaptureCompleted && !isActive && !capturedPhoto && !showLeadForm && !showThankYou && !showProcessingScreen && !showResponseImage && (
               <div className="max-w-4xl lg:max-w-6xl mx-auto space-y-6 px-4 lg:px-8">
-                {/* Header inside card on the left */}
+                {/* Progress indicator */}
                 <div className="text-left mb-6">
-                  <h3 className="text-xl lg:text-2xl font-semibold text-foreground mb-2">Your Preferences</h3>
-                  <p className="text-sm lg:text-base text-muted-foreground">Fill in your preferences before taking your photo</p>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl lg:text-2xl font-semibold text-foreground">Your Preferences</h3>
+                    <span className="text-sm lg:text-base text-muted-foreground">
+                      Step {currentStep} of 4
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-primary to-primary-glow h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(currentStep / 4) * 100}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-5 lg:space-y-6">
-                  {/* Name and Gender - Same row */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-                    <div className="space-y-2 lg:space-y-3">
-                      <Label htmlFor="name" className="text-base lg:text-lg font-medium">Name *</Label>
-                      <Input
-                        id="name"
-                        type="text"
-                        placeholder="Your name"
-                        value={preCaptureData.name}
-                        onChange={(e) => setPreCaptureData(prev => ({ ...prev, name: e.target.value }))}
-                        className="h-12 lg:h-14 text-base lg:text-lg rounded-xl border-2 focus:border-primary"
-                        autoComplete="off"
-                        required
-                      />
+
+                {/* Step 1: Name */}
+                {currentStep === 1 && (
+                  <div className="space-y-6">
+                    <div className="text-center space-y-4">
+                      <h4 className="text-2xl lg:text-3xl font-bold text-foreground">What's your name?</h4>
+                      <p className="text-base lg:text-lg text-muted-foreground">Let's start with your name</p>
                     </div>
                     
-                    <div className="space-y-2 lg:space-y-3">
-                      <Label htmlFor="gender" className="text-base lg:text-lg font-medium">Gender *</Label>
-                      <Select
+                    <div className="max-w-md mx-auto space-y-4">
+                      <Input
+                        type="text"
+                        placeholder="Enter your name"
+                        value={preCaptureData.name}
+                        onChange={(e) => setPreCaptureData(prev => ({ ...prev, name: e.target.value }))}
+                        className="h-14 lg:h-16 text-lg lg:text-xl text-center rounded-xl border-2 focus:border-primary"
+                        autoComplete="off"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2: Gender */}
+                {currentStep === 2 && (
+                  <div className="space-y-6">
+                    <div className="text-center space-y-4">
+                      <h4 className="text-2xl lg:text-3xl font-bold text-foreground">What's your gender?</h4>
+                      <p className="text-base lg:text-lg text-muted-foreground">This helps us personalize your experience</p>
+                    </div>
+                    
+                    <div className="max-w-md mx-auto">
+                      <RadioGroup
                         value={preCaptureData.gender}
                         onValueChange={(value: 'male' | 'female' | 'other') => 
                           setPreCaptureData(prev => ({ ...prev, gender: value }))
                         }
+                        className="space-y-4"
                       >
-                        <SelectTrigger className="h-12 lg:h-14 text-base lg:text-lg rounded-xl border-2 focus:border-primary">
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                          <SelectItem value="male" className="text-base lg:text-lg p-3">Male</SelectItem>
-                          <SelectItem value="female" className="text-base lg:text-lg p-3">Female</SelectItem>
-                          <SelectItem value="other" className="text-base lg:text-lg p-3">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-colors">
+                          <RadioGroupItem value="male" id="male" className="h-5 w-5" />
+                          <Label htmlFor="male" className="text-lg lg:text-xl cursor-pointer flex-1">Male</Label>
+                        </div>
+                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-colors">
+                          <RadioGroupItem value="female" id="female" className="h-5 w-5" />
+                          <Label htmlFor="female" className="text-lg lg:text-xl cursor-pointer flex-1">Female</Label>
+                        </div>
+                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-colors">
+                          <RadioGroupItem value="other" id="other" className="h-5 w-5" />
+                          <Label htmlFor="other" className="text-lg lg:text-xl cursor-pointer flex-1">Other</Label>
+                        </div>
+                      </RadioGroup>
                     </div>
                   </div>
-                  
-                  {/* Coffee and Drink Preferences - Same row */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-                    <div className="space-y-2 lg:space-y-3">
-                      <Label htmlFor="coffee" className="text-base lg:text-lg font-medium">Coffee Preference *</Label>
-                      <Select
+                )}
+
+                {/* Step 3: Coffee Preference */}
+                {currentStep === 3 && (
+                  <div className="space-y-6">
+                    <div className="text-center space-y-4">
+                      <h4 className="text-2xl lg:text-3xl font-bold text-foreground">Do you like coffee?</h4>
+                      <p className="text-base lg:text-lg text-muted-foreground">Choose your coffee preference</p>
+                    </div>
+                    
+                    <div className="max-w-md mx-auto">
+                      <RadioGroup
                         value={preCaptureData.coffeePreference}
                         onValueChange={(value: 'coffee' | 'non-coffee') => 
                           setPreCaptureData(prev => ({ ...prev, coffeePreference: value }))
                         }
+                        className="space-y-4"
                       >
-                        <SelectTrigger className="h-12 lg:h-14 text-base lg:text-lg rounded-xl border-2 focus:border-primary">
-                          <SelectValue placeholder="Coffee preference" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                          <SelectItem value="coffee" className="text-base lg:text-lg p-3">Coffee</SelectItem>
-                          <SelectItem value="non-coffee" className="text-base lg:text-lg p-3">Non-Coffee</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-colors">
+                          <RadioGroupItem value="coffee" id="coffee" className="h-5 w-5" />
+                          <Label htmlFor="coffee" className="text-lg lg:text-xl cursor-pointer flex-1">Yes, I love coffee ☕</Label>
+                        </div>
+                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-colors">
+                          <RadioGroupItem value="non-coffee" id="non-coffee" className="h-5 w-5" />
+                          <Label htmlFor="non-coffee" className="text-lg lg:text-xl cursor-pointer flex-1">No, I prefer non-coffee drinks 🥤</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 4: Alcohol Preference */}
+                {currentStep === 4 && (
+                  <div className="space-y-6">
+                    <div className="text-center space-y-4">
+                      <h4 className="text-2xl lg:text-3xl font-bold text-foreground">Alcohol preference?</h4>
+                      <p className="text-base lg:text-lg text-muted-foreground">Choose your drink type</p>
                     </div>
                     
-                    <div className="space-y-2 lg:space-y-3">
-                      <Label htmlFor="alcohol" className="text-base lg:text-lg font-medium">Drink Preference *</Label>
-                      <Select
+                    <div className="max-w-md mx-auto">
+                      <RadioGroup
                         value={preCaptureData.alcoholPreference}
                         onValueChange={(value: 'cocktail' | 'non-alcohol') => 
                           setPreCaptureData(prev => ({ ...prev, alcoholPreference: value }))
                         }
+                        className="space-y-4"
                       >
-                        <SelectTrigger className="h-12 lg:h-14 text-base lg:text-lg rounded-xl border-2 focus:border-primary">
-                          <SelectValue placeholder="Drink preference" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                          <SelectItem value="cocktail" className="text-base lg:text-lg p-3">Cocktail</SelectItem>
-                          <SelectItem value="non-alcohol" className="text-base lg:text-lg p-3">Non-Alcohol</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-colors">
+                          <RadioGroupItem value="cocktail" id="cocktail" className="h-5 w-5" />
+                          <Label htmlFor="cocktail" className="text-lg lg:text-xl cursor-pointer flex-1">Cocktail/Alcohol 🍸</Label>
+                        </div>
+                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-colors">
+                          <RadioGroupItem value="non-alcohol" id="non-alcohol" className="h-5 w-5" />
+                          <Label htmlFor="non-alcohol" className="text-lg lg:text-xl cursor-pointer flex-1">Non-Alcoholic 🥤</Label>
+                        </div>
+                      </RadioGroup>
                     </div>
                   </div>
-                </div>
+                )}
 
+                {/* Navigation buttons */}
                 <div className="pt-6 lg:pt-8">
-                  <Button
-                    onClick={validateAndCompletePreCapture}
-                    className="w-full bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-lg lg:text-xl py-5 lg:py-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-                  >
-                    <Camera className="mr-3 h-5 w-5 lg:h-6 lg:w-6" />
-                    Continue to Camera
-                  </Button>
+                  <div className="max-w-md mx-auto">
+                    {currentStep === 1 ? (
+                      <Button
+                        onClick={handleStepNext}
+                        className="w-full bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-base lg:text-lg py-4 lg:py-5 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                      >
+                        Next
+                        <ArrowRight className="ml-2 h-5 w-5" />
+                      </Button>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-4">
+                        <Button
+                          onClick={handleStepPrev}
+                          variant="outline"
+                          className="py-4 lg:py-5 text-base lg:text-lg rounded-xl border-2 hover:bg-muted transition-all duration-200"
+                        >
+                          Back
+                        </Button>
+                        <Button
+                          onClick={handleStepNext}
+                          className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-base lg:text-lg py-4 lg:py-5 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                        >
+                          {currentStep === 4 ? (
+                            <>
+                              <Camera className="mr-2 h-4 w-4 lg:h-5 lg:w-5" />
+                              Continue
+                            </>
+                          ) : (
+                            <>
+                              Next
+                              <ArrowRight className="ml-2 h-4 w-4 lg:h-5 lg:w-5" />
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
             {/* Camera Ready - After Pre-Capture */}
-            {preCaptureCompleted && !isActive && !capturedPhoto && !showLeadForm && !showThankYou && (
+            {preCaptureCompleted && !isActive && !capturedPhoto && !showLeadForm && !showThankYou && !showProcessingScreen && !showResponseImage && (
               <div className="text-center space-y-6 lg:space-y-8 px-4 lg:px-8">
                 <div className="flex items-center justify-center gap-4 lg:gap-6">
                   <div className="w-12 h-12 lg:w-16 lg:h-16 bg-gradient-to-br from-primary to-primary-glow rounded-full flex items-center justify-center shadow-lg">
@@ -590,7 +799,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
             )}
 
             {/* Camera View - Full Screen */}
-            {isActive && !showThankYou && (
+            {isActive && !showThankYou && !showProcessingScreen && !showResponseImage && (
               <div className="fixed inset-0 z-50 bg-black">
                 <div className="relative w-full h-full flex flex-col">
                   {/* Video container - full screen */}
@@ -659,7 +868,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
             )}
 
             {/* Captured Photo - Full Screen */}
-            {capturedPhoto && !isAnalyzing && !showLeadForm && !showThankYou && (
+            {capturedPhoto && !isAnalyzing && !showAnalysisResults && !showLeadForm && !showThankYou && !showProcessingScreen && !showResponseImage && (
               <div className="fixed inset-0 z-50 bg-black">
                 <div className="relative w-full h-full flex flex-col">
                   {/* Photo container - full screen */}
@@ -747,19 +956,19 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
 
             {/* Analysis Loading Screen */}
             {isAnalyzing && capturedPhoto && !showThankYou && (
-              <div className="fixed inset-0 z-50 bg-black">
+              <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-lg">
                 <div className="relative w-full h-full flex flex-col">
                   {/* Photo container - full screen with overlay */}
-                  <div className="flex-1 relative bg-black">
+                  <div className="flex-1 relative">
                     <img
                       src={capturedPhoto}
                       alt="Analyzing Photo"
-                      className="w-full h-full object-cover opacity-50"
+                      className="w-full h-full object-cover opacity-30"
                     />
                     
                     {/* Analysis overlay */}
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center bg-black/70 backdrop-blur-sm rounded-3xl p-12 lg:p-16 mx-6 lg:mx-8 border border-white/20 max-w-2xl">
+                      <div className="text-center bg-white/10 backdrop-blur-md rounded-3xl p-12 lg:p-16 mx-6 lg:mx-8 border border-white/30 max-w-2xl">
                         <div className="mx-auto w-24 h-24 lg:w-32 lg:h-32 mb-8 lg:mb-10 relative">
                           <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-primary/30"></div>
                           <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-transparent border-t-primary animate-spin"></div>
@@ -779,91 +988,100 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
               </div>
             )}
 
-            
-
-            {/* Your Information Form - After Analysis */}
-            {showLeadForm && capturedPhoto && !showThankYou && (
-              <div className="max-w-4xl lg:max-w-6xl mx-auto space-y-6 px-4 lg:px-8">
-                {/* Header with photo and description side by side */}
-                <div className="flex flex-col md:flex-row items-center gap-4 lg:gap-6 mb-6">
-                  {/* Photo preview thumbnail - Left side */}
-                  <div className="flex-shrink-0">
-                    <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-xl overflow-hidden border-2 border-primary/20 shadow-lg flex items-center justify-center bg-muted/10">
-                      <img
-                        src={capturedPhoto}
-                        alt="Captured photo thumbnail"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+            {/* Analysis Results Screen */}
+            {showAnalysisResults && capturedPhoto && !showThankYou && !showProcessingScreen && !showResponseImage && (
+              <div className="max-w-2xl mx-auto space-y-4 px-4">
+                {/* Header with photo */}
+                <div className="text-center space-y-3">
+                  <div className="mx-auto w-16 h-16 rounded-xl overflow-hidden border-2 border-primary/20 shadow-lg">
+                    <img
+                      src={capturedPhoto}
+                      alt="Your photo"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                  
-                  {/* Title and description - Right side */}
-                  <div className="text-center md:text-left flex-1">
-                    <h3 className="text-xl lg:text-2xl font-semibold text-foreground mb-2">Your Information</h3>
-                    <p className="text-sm lg:text-base text-muted-foreground">Enter your contact details to save your recommendation</p>
-                  </div>
+                  <h3 className="text-xl font-bold text-foreground">Your Personalized Results</h3>
+                  <p className="text-sm text-muted-foreground">Here's what we found for you!</p>
                 </div>
                 
                 {/* Analysis Results */}
                 {analysisResults && (
-                  <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-2xl p-4 lg:p-6 text-sm lg:text-base mb-6">
-                      <div className="flex items-center space-x-2 lg:space-x-3 mb-3 lg:mb-4">
-                        <CheckCircle className="h-5 w-5 lg:h-6 lg:w-6 text-primary" />
-                        <p className="font-semibold text-foreground text-base lg:text-lg">Analysis Completed</p>
-                      </div>
-                      
-                      {analysisResults.drink && (
-                        <div className="bg-card rounded-xl p-3 lg:p-4 border border-primary/10 shadow-sm mb-3 lg:mb-4">
-                          <div className="text-center">
-                            <h3 className="text-lg lg:text-xl font-bold text-primary mb-2 lg:mb-3">Recommended Drink</h3>
-                            <div className="bg-primary text-primary-foreground px-4 py-2 lg:px-6 lg:py-3 rounded-full inline-block text-sm lg:text-base font-medium mb-2 lg:mb-3">
-                              {analysisResults.drink}
-                            </div>
-                            {drinkDetails && drinkDetails.description && (
-                              <div className="bg-card rounded-lg p-2 lg:p-3 mt-2 lg:mt-3 border border-primary/10">
-                                <p className="text-xs lg:text-sm font-medium text-muted-foreground mb-1 lg:mb-2">DESCRIPTION</p>
-                                <p className="text-foreground text-sm lg:text-base leading-relaxed">
-                                  {drinkDetails.description}
-                                </p>
-                              </div>
-                            )}
+                  <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-xl p-4">
+                    <div className="flex items-center justify-center space-x-2 mb-4">
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                      <p className="font-semibold text-foreground text-base">Analysis Complete!</p>
+                    </div>
+                    
+                    {analysisResults.drink && (
+                      <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm mb-4">
+                        <div className="text-center">
+                          <h3 className="text-lg font-bold text-primary mb-3">🍹 Your Perfect Drink</h3>
+                          <div className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground px-4 py-2 rounded-full inline-block text-base font-semibold mb-3 shadow-lg">
+                            {analysisResults.drink}
                           </div>
+                          {drinkDetails && drinkDetails.description && (
+                            <div className="bg-muted rounded-lg p-3 mt-3 border border-primary/10">
+                              <p className="text-xs font-medium text-muted-foreground mb-1">DESCRIPTION</p>
+                              <p className="text-foreground text-sm leading-relaxed">
+                                {drinkDetails.description}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      {analysisResults.mood && (
+                        <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm text-center">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">YOUR MOOD</p>
+                          <p className="text-sm font-bold text-foreground">{analysisResults.mood}</p>
                         </div>
                       )}
                       
-                      <div className="grid grid-cols-2 gap-2 lg:gap-3">
-                        {analysisResults.mood && (
-                          <div className="bg-card rounded-xl p-2 lg:p-3 border border-primary/10 shadow-sm">
-                            <div className="text-center">
-                              <p className="text-xs lg:text-sm font-medium text-muted-foreground mb-1">MOOD</p>
-                              <p className="text-sm lg:text-base font-semibold text-foreground">{analysisResults.mood}</p>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {analysisResults.age && (
-                          <div className="bg-card rounded-xl p-2 lg:p-3 border border-primary/10 shadow-sm">
-                            <div className="text-center">
-                              <p className="text-xs lg:text-sm font-medium text-muted-foreground mb-1">AGE</p>
-                              <p className="text-sm lg:text-base font-semibold text-foreground">{analysisResults.age} years</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Show raw data as fallback if structure is different */}
-                      {(!analysisResults.mood && !analysisResults.age && !analysisResults.drink) && (
-                        <div className="bg-card rounded-xl p-2 lg:p-3 border border-primary/10">
-                          <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono max-h-32 overflow-y-auto">
-                            {typeof analysisResults === 'string' 
-                              ? analysisResults 
-                              : JSON.stringify(analysisResults, null, 2)
-                            }
-                          </pre>
+                      {analysisResults.age && (
+                        <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm text-center">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">ESTIMATED AGE</p>
+                          <p className="text-sm font-bold text-foreground">{analysisResults.age} years</p>
                         </div>
                       )}
+                    </div>
+                    
+                    {/* Show raw data as fallback if structure is different */}
+                    {(!analysisResults.mood && !analysisResults.age && !analysisResults.drink) && (
+                      <div className="bg-card rounded-lg p-3 border border-primary/10">
+                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono max-h-32 overflow-y-auto">
+                          {typeof analysisResults === 'string' 
+                            ? analysisResults 
+                            : JSON.stringify(analysisResults, null, 2)
+                          }
+                        </pre>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* Continue Button */}
+                <div className="text-center pt-3">
+                  <Button
+                    onClick={proceedToLeadForm}
+                    className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-base py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                  >
+                    Continue
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Your Information Form - After Analysis */}
+            {showLeadForm && capturedPhoto && !showProcessingScreen && !showResponseImage && !showThankYou && (
+              <div className="max-w-4xl lg:max-w-6xl mx-auto space-y-6 px-4 lg:px-8">
+                {/* Header */}
+                <div className="text-center space-y-4 mb-8">
+                  <h3 className="text-2xl lg:text-3xl font-bold text-foreground">Almost Done!</h3>
+                  <p className="text-base lg:text-lg text-muted-foreground">Enter your contact details to save your personalized recommendation</p>
+                </div>
 
 
 
@@ -921,7 +1139,83 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
               </div>
             )}
 
-                        {/* Thank You Screen - Simple */}
+            {/* Processing Screen */}
+            {showProcessingScreen && (
+              <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-lg">
+                <div className="relative w-full h-full flex flex-col">
+                  <div className="flex-1 relative">
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="text-center bg-white/10 backdrop-blur-md rounded-3xl p-12 lg:p-16 mx-6 lg:mx-8 border border-white/30 max-w-2xl">
+                        <div className="mx-auto w-24 h-24 lg:w-32 lg:h-32 mb-8 lg:mb-10 relative">
+                          <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-primary/30"></div>
+                          <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-transparent border-t-primary animate-spin"></div>
+                          <CheckCircle className="absolute inset-4 lg:inset-6 h-16 w-16 lg:h-20 lg:w-20 text-primary" />
+                        </div>
+                        <h3 className="text-3xl lg:text-4xl font-semibold text-white mb-4 lg:mb-6">Processing</h3>
+                        <p className="text-white/80 text-xl lg:text-2xl mb-6 lg:mb-8">Creating your personalized image...</p>
+                        <div className="flex items-center justify-center space-x-2 lg:space-x-3">
+                          <div className="w-3 h-3 lg:w-4 lg:h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                          <div className="w-3 h-3 lg:w-4 lg:h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                          <div className="w-3 h-3 lg:w-4 lg:h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Response Image Screen */}
+            {showResponseImage && n8nResponseImage && !showProcessingScreen && !showThankYou && (
+              <div className="max-w-2xl mx-auto space-y-6 px-4">
+                <div className="text-center space-y-4">
+                  <h3 className="text-2xl lg:text-3xl font-bold text-foreground">🎉 Your Personalized Image</h3>
+                  <p className="text-base lg:text-lg text-muted-foreground">Here's your custom creation!</p>
+                </div>
+                
+                <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-xl p-4">
+                  <div className="bg-card rounded-lg p-4 border border-primary/10 shadow-sm">
+                    <img
+                      src={n8nResponseImage}
+                      alt="Your personalized image"
+                      className="w-full h-auto rounded-lg shadow-lg"
+                      onLoad={() => {
+                      }}
+                      onError={(e) => {
+                        // If image fails to load, skip to thank you screen
+                        showAlert("default", "Image Ready", "Your personalized image is being prepared and will be sent to you shortly!");
+                        setShowResponseImage(false);
+                        setShowThankYou(true);
+                        onLeadSaved?.();
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Send to Me Button */}
+                <div className="text-center pt-3">
+                  <Button
+                    onClick={sendImageToUser}
+                    disabled={isProcessing}
+                    className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-base py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        Send to Me
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Thank You Screen - Simple */}
             {showThankYou && (
               <div className="max-w-xl mx-auto px-4 lg:px-8">
                 <div className="text-center space-y-6 lg:space-y-8">

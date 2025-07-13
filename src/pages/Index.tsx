@@ -40,7 +40,7 @@ const Index = () => {
             {currentView === 'camera' && (
               <CameraCapture 
                 onPhotoTaken={(photoData) => {
-                  console.log('Photo captured:', photoData.substring(0, 100) + '...');
+                  // Photo captured successfully
                 }}
                 onLeadSaved={handleLeadSaved}
               />

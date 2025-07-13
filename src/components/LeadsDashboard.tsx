@@ -42,7 +42,6 @@ export const LeadsDashboard = () => {
       // Test connection first
       const connectionTest = await testConnection();
       if (!connectionTest.success) {
-        console.error('Connection test failed:', connectionTest.error);
         toast({
           title: "Database Connection Failed",
           description: `Cannot connect to database: ${connectionTest.error}`,
@@ -59,7 +58,6 @@ export const LeadsDashboard = () => {
           .order('created_at', { ascending: false });
 
         if (error) {
-          console.error('Error loading leads:', error);
           toast({
             title: "Error loading leads",
             description: `Database error: ${error.message} (Code: ${error.code})`,
@@ -67,10 +65,8 @@ export const LeadsDashboard = () => {
           });
         } else {
           setLeads(data || []);
-          console.log(`Successfully loaded ${data?.length || 0} leads`);
         }
       } catch (error) {
-        console.error('Error loading leads:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         toast({
           title: "Error loading leads",
@@ -173,7 +169,6 @@ export const LeadsDashboard = () => {
         description: `${leads.length} leads exported to ${fileName}`,
       });
     } catch (error) {
-      console.error('Export error:', error);
       toast({
         title: "Export Failed",
         description: "Failed to export leads to XLSX",

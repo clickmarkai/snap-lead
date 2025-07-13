@@ -73,7 +73,6 @@ export const getSyrupPhotosAPI = async (request: Request): Promise<Response> => 
     return new Response(JSON.stringify(result), { status: 200, headers })
 
   } catch (error) {
-    console.error('API Error:', error)
     const headers = {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*'
