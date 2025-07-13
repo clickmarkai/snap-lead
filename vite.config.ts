@@ -8,7 +8,7 @@ import fs from 'fs';
 export default defineConfig(({ mode }) => ({
   server: {
     host: "0.0.0.0",
-    port: 8080,
+    port: 8888,
     // Only use HTTPS in development mode when certificates exist
     ...(mode === 'development' && fs.existsSync('./certs/key.pem') && fs.existsSync('./certs/cert.pem') ? {
       https: {

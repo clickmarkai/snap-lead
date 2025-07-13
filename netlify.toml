@@ -8,12 +8,11 @@
   # Node.js version
   environment = { NODE_VERSION = "18" }
 
-[build.environment]
-  # Build environment variables (set these in Netlify dashboard)
-  # VITE_SUPABASE_URL = "your_supabase_url"
-  # VITE_SUPABASE_ANON_KEY = "your_supabase_anon_key"
-  # VITE_N8N_WEBHOOK_URL = "your_n8n_webhook_url" # optional
-  # VITE_N8N_ANALYZE_URL = "your_n8n_analyze_url" # optional
+# Environment variables should be set in Netlify dashboard:
+# VITE_SUPABASE_URL = "your_supabase_url"
+# VITE_SUPABASE_ANON_KEY = "your_supabase_anon_key"
+# VITE_N8N_WEBHOOK_URL = "your_n8n_webhook_url" (optional)
+# VITE_N8N_ANALYZE_URL = "your_n8n_analyze_url" (optional)
 
 # SPA redirect for client-side routing
 [[redirects]]
