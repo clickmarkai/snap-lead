@@ -38,6 +38,13 @@ export interface DrinkMenu {
   category: string
 }
 
+export interface Fortune {
+  id: number
+  mood: string
+  gimmick: string
+  fortune_story: string
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -548,8 +555,7 @@ export const getDrinkByName = async (name: string): Promise<DrinkMenu | null> =>
     const { data, error } = await supabase
       .from('drink_menu')
       .select('*')
-      .ilike('name', `%${name}%`)
-      .limit(1)
+      .ilike('name', name)
       .single()
 
     if (error) {
@@ -557,6 +563,27 @@ export const getDrinkByName = async (name: string): Promise<DrinkMenu | null> =>
     }
 
     return data
+  } catch (error) {
+    return null
+  }
+}
+
+// Fortune functions
+export const getFortuneByMood = async (mood: string): Promise<Fortune | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('fortunes')
+      .select('*')
+      .ilike('mood', mood.toUpperCase())
+      .order('id', { ascending: false })
+
+    if (error || !data || data.length === 0) {
+      return null
+    }
+
+    // Randomize the results and pick one
+    const randomIndex = Math.floor(Math.random() * data.length)
+    return data[randomIndex]
   } catch (error) {
     return null
   }

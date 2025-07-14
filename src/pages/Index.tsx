@@ -4,6 +4,7 @@ import { LeadsDashboard } from '@/components/LeadsDashboard';
 import { SyrupPhotoUpload } from '@/components/SyrupPhotoUpload';
 import { Navigation } from '@/components/Navigation';
 import logoImage from '@/assets/logo.png';
+import packageJson from '../../package.json';
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<'camera' | 'leads' | 'syrup'>('camera');
@@ -19,7 +20,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
       <div className="container mx-auto px-6 lg:px-8 py-8 lg:py-12">
         <div className="space-y-8 lg:space-y-12">
           {/* Header */}
@@ -49,6 +50,13 @@ const Index = () => {
             {currentView === 'syrup' && <SyrupPhotoUpload />}
           </div>
         </div>
+      </div>
+      
+      {/* Version Display - Bottom Left */}
+      <div className="fixed bottom-4 left-4 z-10">
+        <p className="text-xs text-muted-foreground/50 font-mono">
+          v{packageJson.version}
+        </p>
       </div>
     </div>
   );

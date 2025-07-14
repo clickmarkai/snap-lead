@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { createLead, analyzeImageWithN8N, getDrinkByName, DrinkMenu, base64ToBlob, sendToN8NWebhook } from '@/lib/supabase';
+import { createLead, analyzeImageWithN8N, getDrinkByName, DrinkMenu, base64ToBlob, sendToN8NWebhook, getFortuneByMood, Fortune } from '@/lib/supabase';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
@@ -37,6 +37,7 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
   const [analysisResults, setAnalysisResults] = useState<any>(null);
   const [analysisFailed, setAnalysisFailed] = useState(false);
   const [drinkDetails, setDrinkDetails] = useState<DrinkMenu | null>(null);
+  const [fortuneData, setFortuneData] = useState<Fortune | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [showAnalysisResults, setShowAnalysisResults] = useState(false);
   const [showLeadForm, setShowLeadForm] = useState(false);
@@ -138,6 +139,7 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     setCapturedPhoto(null);
     setAnalysisResults(null);
     setDrinkDetails(null);
+    setFortuneData(null);
     setShowAnalysisResults(false);
     setShowLeadForm(false);
     setShowProcessingScreen(false);
@@ -158,6 +160,7 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     setCapturedPhoto(null);
     setAnalysisResults(null);
     setDrinkDetails(null);
+    setFortuneData(null);
     setAnalysisFailed(false);
     setShowAnalysisResults(false);
     setShowLeadForm(false);
@@ -305,6 +308,17 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
             setDrinkDetails(null);
           }
         }
+        
+        // Fetch fortune data if mood is available
+        const mood = analysisResults.mood || analysisResults.emotion || analysisResults.feeling;
+        if (mood) {
+          try {
+            const fortune = await getFortuneByMood(mood);
+            setFortuneData(fortune);
+          } catch (error) {
+            setFortuneData(null);
+          }
+        }
       } else {
         setAnalysisResults(null);
         setAnalysisFailed(true);
@@ -420,6 +434,7 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     setCapturedPhoto(null);
     setAnalysisResults(null);
     setDrinkDetails(null);
+    setFortuneData(null);
     setShowAnalysisResults(false);
     setShowLeadForm(false);
     setShowProcessingScreen(false);
@@ -1004,7 +1019,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                   <p className="text-sm text-muted-foreground">Here's what we found for you!</p>
                 </div>
                 
-                {/* Analysis Results */}
+                {/* Analysis Results with Fortune Combined */}
                 {analysisResults && (
                   <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-xl p-4">
                     <div className="flex items-center justify-center space-x-2 mb-4">
@@ -1031,7 +1046,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                       </div>
                     )}
                     
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3 mb-4">
                       {analysisResults.mood && (
                         <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm text-center">
                           <p className="text-xs font-medium text-muted-foreground mb-1">YOUR MOOD</p>
@@ -1046,6 +1061,26 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                         </div>
                       )}
                     </div>
+                    
+                    {/* Fortune Display - Combined inside Analysis Card */}
+                    {fortuneData && (analysisResults?.mood || analysisResults?.emotion) && (
+                      <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm mb-4">
+                        <div className="text-center">
+                          <h3 className="text-lg font-bold text-primary mb-3">🔮 Your Fortune</h3>
+                          <div className="space-y-3">
+                            <p className="text-sm font-bold text-foreground">{fortuneData.gimmick}</p>
+                            <div className="border-t border-primary/10 pt-3">
+                              <p className="text-sm text-black leading-relaxed text-left">
+                                {fortuneData.fortune_story}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+
+
                     
                     {/* Show raw data as fallback if structure is different */}
                     {(!analysisResults.mood && !analysisResults.age && !analysisResults.drink) && (
