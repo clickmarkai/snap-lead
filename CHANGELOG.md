@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2024-07-15
+### Fixed
+- Patch release: bug fixes and minor improvements.
+
 ## [1.1.0] - 2024-12-19
 
 ### Added
@@ -26,6 +30,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced mood detection to support multiple emotion field names (`mood`, `emotion`, `feeling`)
 - Integrated fortune fetching in analysis workflow
 - Added proper error handling for fortune retrieval
+
+## [1.1.0] - 2024-07-15
+### Added
+- Drink details card now displays type, glass type, main ingredients, emotion, and feel, with ingredients shown below columns.
+- 'Feel' and 'emotion' fields from updated_drink_menu are now supported and shown in the UI.
+- Always send generated image link to webhook as 'imageUrl'.
+- 'Give Me a Different Look' button always regenerates the image.
+
+### Changed
+- Drink details card layout: columns for main fields, ingredients and feel repositioned for clarity.
+- Drink name and feel positioning improved for clarity and compactness.
+- Removed debug info from camera UI for production.
+- Various UI/UX improvements and bug fixes.
 
 ## [1.0.0] - 2024-12-19
 

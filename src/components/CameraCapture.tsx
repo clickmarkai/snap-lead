@@ -22,7 +22,7 @@ interface PreCaptureFormData {
   coffeePreference: 'coffee' | 'non-coffee' | '';
   alcoholPreference: 'cocktail' | 'non-alcohol' | '';
 }
-
+ 
 interface LeadFormData {
   email: string;
   whatsapp: string;
@@ -38,7 +38,6 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
   const [analysisFailed, setAnalysisFailed] = useState(false);
   const [drinkDetails, setDrinkDetails] = useState<DrinkMenu | null>(null);
   const [fortuneData, setFortuneData] = useState<Fortune | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string>('');
   const [showAnalysisResults, setShowAnalysisResults] = useState(false);
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showProcessingScreen, setShowProcessingScreen] = useState(false);
@@ -85,7 +84,6 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
   const startCamera = useCallback(async () => {
     setIsLoading(true);
     setIsActive(true); // Set active first to render video element
-    setDebugInfo('Requesting camera access...');
     
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -96,8 +94,6 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
         }
       });
       
-      setDebugInfo('Camera stream obtained, setting up video...');
-      
       // Wait a bit for the video element to be rendered
       setTimeout(() => {
         if (videoRef.current) {
@@ -106,24 +102,21 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
           
           // Wait for video to be ready
           videoRef.current.onloadedmetadata = () => {
-            setDebugInfo('Video metadata loaded, camera should be active');
             setIsLoading(false);
           };
           
           // Add error handler for video element
           videoRef.current.onerror = (error) => {
-            setDebugInfo('Video element error occurred');
             setIsLoading(false);
+            setIsActive(false);
           };
         } else {
-          setDebugInfo('Video ref is still null after timeout');
           setIsLoading(false);
           setIsActive(false);
         }
       }, 100); // Small delay to ensure video element is rendered
       
     } catch (error) {
-      setDebugInfo(`Camera error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setIsLoading(false);
       setIsActive(false);
       showAlert("destructive", "Camera Error", "Unable to access camera. Please check permissions.");
@@ -255,16 +248,17 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
   }, [currentStep]);
 
   const constructCategory = useCallback((coffeePreference: string, alcoholPreference: string) => {
+    // Only allow these categories: 'Coffee Mocktail', 'Mocktail', 'Coffee Cocktail', 'Cocktail'
     if (coffeePreference === 'coffee' && alcoholPreference === 'cocktail') {
       return 'Coffee Cocktail';
     } else if (coffeePreference === 'coffee' && alcoholPreference === 'non-alcohol') {
       return 'Coffee Mocktail';
     } else if (coffeePreference === 'non-coffee' && alcoholPreference === 'cocktail') {
-      return 'Non-Coffee Cocktail';
+      return 'Cocktail';
     } else if (coffeePreference === 'non-coffee' && alcoholPreference === 'non-alcohol') {
-      return 'Non-Coffee Mocktail';
+      return 'Mocktail';
     }
-    return 'Coffee Mocktail'; // fallback to most common case
+    return 'Mocktail'; // fallback to most common case
   }, []);
 
   const saveLead = useCallback(async () => {
@@ -375,11 +369,6 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
         if (analysisResults.drink) formData.append('recommendedDrink', analysisResults.drink);
       }
       
-      // Add drink description if available
-      if (drinkDetails?.description) {
-        formData.append('drinkDescription', drinkDetails.description);
-      }
-      
       // Add timestamp
       formData.append('timestamp', new Date().toISOString());
       
@@ -407,6 +396,11 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
         }
       }
       
+      // Always add the generated image URL if present
+      if (n8nResponseImage) {
+        formData.append('imageUrl', n8nResponseImage);
+      }
+      
       // Send to webhook with FormData
       const response = await fetch('https://primary-production-b68a.up.railway.app/webhook/send', {
         method: 'POST',
@@ -427,7 +421,7 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     } finally {
       setIsProcessing(false);
     }
-  }, [leadFormData, preCaptureData, analysisResults, drinkDetails, n8nResponseImage, constructCategory, showAlert, onLeadSaved]);
+  }, [leadFormData, preCaptureData, analysisResults, n8nResponseImage, constructCategory, showAlert, onLeadSaved]);
 
   const resetForNextCustomer = useCallback(() => {
     // Reset everything for next customer
@@ -507,7 +501,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
           preCaptureData.alcoholPreference,
           category,
           analysisResults,
-          drinkDetails?.description || undefined
+          undefined // Removed drinkDetails?.description
         );
         
         // Hide processing screen
@@ -538,7 +532,47 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
     } finally {
       setIsProcessing(false);
     }
-  }, [capturedPhoto, leadFormData, showAlert, onLeadSaved, preCaptureData, analysisResults, drinkDetails, constructCategory]);
+  }, [capturedPhoto, leadFormData, showAlert, onLeadSaved, preCaptureData, analysisResults, constructCategory]);
+
+  // Add a new state for re-generating loading
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  // Add a function to re-generate the personalized image
+  const reGenerateImage = useCallback(async () => {
+    if (!capturedPhoto) return;
+    setIsRegenerating(true);
+    setShowProcessingScreen(true);
+    try {
+      const imageBlob = base64ToBlob(capturedPhoto, 'image/jpeg');
+      const category = constructCategory(preCaptureData.coffeePreference, preCaptureData.alcoholPreference);
+      // Always call the generate webhook again to get a new image
+      const responseImage = await sendToN8NWebhook(
+        leadFormData.email,
+        leadFormData.whatsapp,
+        imageBlob,
+        preCaptureData.name,
+        preCaptureData.gender,
+        preCaptureData.coffeePreference,
+        preCaptureData.alcoholPreference,
+        category,
+        analysisResults,
+        undefined // No drink description
+      );
+      setShowProcessingScreen(false);
+      if (responseImage) {
+        setN8nResponseImage(responseImage);
+        setShowResponseImage(true);
+      } else {
+        setShowThankYou(true);
+        onLeadSaved?.();
+      }
+    } catch (error) {
+      setShowProcessingScreen(false);
+      showAlert("destructive", "Re-generate Failed", "Failed to re-generate your image. Please try again.");
+    } finally {
+      setIsRegenerating(false);
+    }
+  }, [capturedPhoto, leadFormData, preCaptureData, analysisResults, constructCategory, showAlert, onLeadSaved]);
 
   return (
     <div className="space-y-8 lg:space-y-12">
@@ -777,11 +811,6 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                   
                   <p className="text-base lg:text-lg text-muted-foreground mb-6 lg:mb-8 max-w-2xl mx-auto">Take a photo to get your personalized drink recommendation</p>
                   
-                  {debugInfo && (
-                    <div className="text-xs text-muted-foreground mb-4 p-2 bg-muted rounded">
-                      Debug: {debugInfo}
-                    </div>
-                  )}
                   
                   <div className="flex flex-col md:flex-row gap-4 lg:gap-6 justify-center max-w-3xl mx-auto">
                     <Button
@@ -1029,20 +1058,54 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                     
                     {analysisResults.drink && (
                       <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm mb-4">
-                        <div className="text-center">
-                          <h3 className="text-lg font-bold text-primary mb-3">🍹 Your Perfect Drink</h3>
-                          <div className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground px-4 py-2 rounded-full inline-block text-base font-semibold mb-3 shadow-lg">
-                            {analysisResults.drink}
-                          </div>
-                          {drinkDetails && drinkDetails.description && (
-                            <div className="bg-muted rounded-lg p-3 mt-3 border border-primary/10">
-                              <p className="text-xs font-medium text-muted-foreground mb-1">DESCRIPTION</p>
-                              <p className="text-foreground text-sm leading-relaxed">
-                                {drinkDetails.description}
-                              </p>
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center text-center sm:text-left gap-2 mb-3">
+                          <h3 className="text-lg font-bold text-primary flex-shrink-0">🍹 Your Perfect Drink</h3>
+                          <div className="flex items-center gap-2 ml-0 sm:ml-4 sm:justify-end w-full">
+                            <div className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground px-4 py-2 rounded-full inline-block text-base font-semibold shadow-lg">
+                              {analysisResults.drink}
                             </div>
-                          )}
+                          </div>
                         </div>
+                        {drinkDetails?.feel && (
+                          <div className="mt-1 mb-2 text-xs text-muted-foreground font-medium whitespace-nowrap text-right pr-4 sm:pr-6">{drinkDetails.feel}</div>
+                        )}
+                        {drinkDetails && (
+                          <div className="rounded-lg p-3 mt-3 text-left">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+                              {drinkDetails.type && (
+                                <div className="mb-2">
+                                  <span className="text-xs font-medium text-muted-foreground">TYPE</span>
+                                  <div className="text-foreground text-sm">{drinkDetails.type}</div>
+                                </div>
+                              )}
+                              {drinkDetails.glass_type && (
+                                <div className="mb-2">
+                                  <span className="text-xs font-medium text-muted-foreground">GLASS TYPE</span>
+                                  <div className="text-foreground text-sm">{drinkDetails.glass_type}</div>
+                                </div>
+                              )}
+                              {drinkDetails.main_ingredients && (
+                                <div className="mb-2">
+                                  <span className="text-xs font-medium text-muted-foreground">MAIN INGREDIENTS</span>
+                                  <div className="text-foreground text-sm">{drinkDetails.main_ingredients}</div>
+                                </div>
+                              )}
+                              {drinkDetails.emotion && (
+                                <div className="mb-2">
+                                  <span className="text-xs font-medium text-muted-foreground">EMOTION</span>
+                                  <div className="text-foreground text-sm">{drinkDetails.emotion}</div>
+                                </div>
+                              )}
+                            </div>
+                            {/* Ingredients out of columns, after columns */}
+                            {drinkDetails.ingredients && (
+                              <div className="mt-4">
+                                <span className="text-xs font-medium text-muted-foreground">INGREDIENTS</span>
+                                <div className="text-foreground text-sm whitespace-pre-line">{drinkDetails.ingredients}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                     
@@ -1227,11 +1290,11 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                   </div>
                 </div>
 
-                {/* Send to Me Button */}
-                <div className="text-center pt-3">
+                {/* Send to Me and Re-generate Buttons */}
+                <div className="text-center pt-3 flex flex-col sm:flex-row gap-4 justify-center">
                   <Button
                     onClick={sendImageToUser}
-                    disabled={isProcessing}
+                    disabled={isProcessing || isRegenerating}
                     className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-base py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
                   >
                     {isProcessing ? (
@@ -1243,6 +1306,24 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                       <>
                         Send to Me
                         <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={reGenerateImage}
+                    disabled={isRegenerating || isProcessing}
+                    variant="outline"
+                    className="text-base py-3 px-6 rounded-xl border-2 border-primary hover:bg-primary/10 transition-all duration-200 transform hover:scale-105"
+                  >
+                    {isRegenerating ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                        Re-generating...
+                      </>
+                    ) : (
+                      <>
+                        Give Me a Different Look
+                        <RotateCcw className="ml-2 h-4 w-4" />
                       </>
                     )}
                   </Button>

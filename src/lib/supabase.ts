@@ -32,10 +32,15 @@ export interface SyrupPhoto {
 }
 
 export interface DrinkMenu {
-  id: number
-  name: string
-  description: string | null
-  category: string
+  id: number;
+  name: string;
+  main_ingredients: string | null;
+  ingredients: string | null;
+  type: string;
+  glass_type: string | null;
+  emotion: string | null;
+  feel: string | null;
+  description: string | null;
 }
 
 export interface Fortune {
@@ -553,20 +558,33 @@ export const analyzeImageWithN8N = async (
 export const getDrinkByName = async (name: string): Promise<DrinkMenu | null> => {
   try {
     const { data, error } = await supabase
-      .from('drink_menu')
+      .from('updated_drink_menu')
       .select('*')
       .ilike('name', name)
-      .single()
+      .single();
 
     if (error) {
-      return null
+      return null;
     }
 
-    return data
+    return data;
   } catch (error) {
-    return null
+    return null;
   }
-}
+};
+
+// If you have a function like getAllDrinks, update it to use updated_drink_menu
+export const getAllDrinks = async (): Promise<DrinkMenu[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('updated_drink_menu')
+      .select('*');
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    return [];
+  }
+};
 
 // Fortune functions
 export const getFortuneByMood = async (mood: string): Promise<Fortune | null> => {
