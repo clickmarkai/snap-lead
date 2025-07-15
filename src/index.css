@@ -2,81 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Heritage & Culture Design System */
+/* DELIFRU Design System */
 
 @layer base {
   :root {
+    /* DELIFRU Dark Blue Background */
+    --delifru-primary: #0a1d3e;
+    --delifru-primary-dark: #081629;
+    --delifru-primary-light: #0c2347;
+    
+    /* Keep existing variables for compatibility */
     --background: 36 44% 90%;
     --foreground: 222 62% 15%;
 
-    --card: 28 100% 96%;
+    --card: 0 0% 100%;
     --card-foreground: 222 62% 15%;
 
-    --popover: 28 100% 96%;
+    --popover: 0 0% 100%;
     --popover-foreground: 222 62% 15%;
 
-    --primary: 222 62% 15%;
-    --primary-foreground: 28 100% 96%;
-    --primary-glow: 50 80% 75%;
+    --primary: 214 76% 48%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 214 88% 65%;
 
-    --secondary: 25 47% 56%;
-    --secondary-foreground: 28 100% 96%;
+    --secondary: 220 13% 91%;
+    --secondary-foreground: 220 9% 46%;
 
-    --muted: 32 54% 65%;
-    --muted-foreground: 224 51% 29%;
+    --muted: 220 13% 91%;
+    --muted-foreground: 220 9% 46%;
 
-    --accent: 50 80% 75%;
-    --accent-foreground: 222 62% 15%;
+    --accent: 214 76% 48%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 222 62% 15%;
-    --input: 28 100% 96%;
-    --ring: 222 62% 15%;
+    --border: 220 13% 91%;
+    --input: 0 0% 100%;
+    --ring: 214 76% 48%;
 
-    /* Heritage-themed colors */
+    /* DELIFRU Dark Blue themed colors */
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
-    --warning: 43 48% 51%;
+    --warning: 214 76% 48%;
     --warning-foreground: 0 0% 100%;
     --info: 224 56% 25%;
     --info-foreground: 0 0% 100%;
-    --camera: 25 47% 56%;
+    --camera: 214 76% 48%;
     --camera-foreground: 0 0% 100%;
 
-    /* Heritage-themed gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
-    --gradient-brown: linear-gradient(135deg, hsl(25 47% 56%), hsl(23 49% 46%));
-    --gradient-warm: linear-gradient(145deg, hsl(28 100% 96%), hsl(32 88% 89%));
-    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(36 82% 82%));
+    /* DELIFRU-themed gradients */
+    --gradient-primary: linear-gradient(135deg, #081629, #0a1d3e, #0c2347);
+    --gradient-blue: linear-gradient(135deg, hsl(214 76% 48%), hsl(214 88% 65%));
+    --gradient-warm: linear-gradient(145deg, hsl(0 0% 100%), hsl(220 13% 95%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(220 13% 98%));
 
-    /* Warm shadows */
-    --shadow-soft: 0 4px 20px -2px hsl(var(--primary) / 0.15);
-    --shadow-medium: 0 8px 30px -4px hsl(var(--primary) / 0.2);
-    --shadow-strong: 0 20px 40px -8px hsl(var(--primary) / 0.25);
-    --shadow-glow: 0 0 40px hsl(var(--primary-glow) / 0.3);
+    /* Clean shadows */
+    --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.1);
+    --shadow-medium: 0 8px 30px -4px rgba(0, 0, 0, 0.15);
+    --shadow-strong: 0 20px 40px -8px rgba(0, 0, 0, 0.2);
+    --shadow-glow: 0 0 40px rgba(59, 130, 246, 0.3);
 
-    /* Animations */
+    /* Enhanced Animations */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-spring: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --transition-slide: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    --transition-fade: all 0.25s ease-in-out;
 
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -133,6 +135,48 @@
 }
 
 @layer components {
+  /* DELIFRU Mobile Design Components */
+  .delifru-card {
+    @apply bg-white rounded-3xl shadow-xl border-2 border-gray-100 transform transition-all duration-300 hover:shadow-2xl hover:scale-[1.02];
+  }
+  
+  .delifru-button-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-full px-8 py-3 transition-all duration-300 transform hover:scale-105 hover:shadow-lg active:scale-95;
+  }
+  
+  .delifru-button-outline {
+    @apply border-2 border-gray-300 hover:bg-gray-50 text-gray-700 font-medium rounded-full px-8 py-3 transition-all duration-300 transform hover:scale-105 hover:shadow-md active:scale-95;
+  }
+  
+  .delifru-input {
+    @apply bg-gray-100 border-0 rounded-2xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-center;
+  }
+  
+  .delifru-radio-option {
+    @apply bg-gray-100 rounded-2xl p-4 hover:bg-gray-200 transition-colors;
+  }
+  
+  .delifru-progress-bar {
+    @apply w-full bg-gray-200 rounded-full h-2;
+  }
+  
+  .delifru-progress-fill {
+    @apply h-2 rounded-full transition-all duration-300 bg-gradient-to-r from-blue-500 to-blue-600;
+  }
+  
+  .delifru-preference-badge {
+    @apply bg-blue-100 text-blue-800 px-3 py-2 rounded-xl text-sm font-medium;
+  }
+
+  /* Override existing card styles for DELIFRU design */
+  .delifru-preferences .ui-card {
+    @apply bg-white rounded-3xl shadow-xl border-2 border-gray-100;
+  }
+  
+  .delifru-preferences .ui-card .ui-card-content {
+    @apply p-6 lg:p-8;
+  }
+  
   /* Enhanced visibility for form controls */
   .form-control-enhanced {
     @apply border-2 border-primary/30 focus:border-primary transition-colors;
@@ -161,4 +205,157 @@
   .nav-button {
     @apply border-2 border-primary/30 hover:border-primary/50;
   }
+  
+  /* DELIFRU-specific overrides for CameraCapture component */
+  .camera-capture-container .ui-card {
+    @apply bg-white rounded-3xl shadow-xl border-2 border-gray-100;
+  }
+  
+  .camera-capture-container .ui-input {
+    @apply bg-gray-100 border-0 rounded-2xl focus:bg-white focus:ring-2 focus:ring-blue-500;
+  }
+  
+  .camera-capture-container .ui-button-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white rounded-2xl;
+  }
+  
+  .camera-capture-container .ui-button-outline {
+    @apply border-2 border-gray-300 hover:bg-gray-50 text-gray-700 rounded-2xl;
+  }
+
+  /* Beautiful Animations & Transitions */
+  .animate-fade-in {
+    animation: fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+  
+  .animate-slide-down {
+    animation: slideDown 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  }
+  
+  .animate-bounce-soft {
+    animation: bounceSoft 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  }
+  
+  .animate-pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+  
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 2s linear infinite;
+  }
+
+  /* Enhanced Button Animations */
+  .btn-animate {
+    @apply transition-all duration-300 ease-out transform;
+  }
+  
+  .btn-animate:hover {
+    @apply scale-105 shadow-lg;
+  }
+  
+  .btn-animate:active {
+    @apply scale-95;
+  }
+  
+  .btn-primary-enhanced {
+    @apply bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-full px-8 py-3 transition-all duration-300 transform hover:scale-105 hover:shadow-xl active:scale-95 focus:ring-4 focus:ring-blue-500/30;
+  }
+  
+  .btn-outline-enhanced {
+    @apply border-2 border-gray-300 hover:border-gray-400 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-full px-8 py-3 transition-all duration-300 transform hover:scale-105 hover:shadow-md active:scale-95 focus:ring-4 focus:ring-gray-300/30;
+  }
+
+  /* Card Animations */
+  .card-animate {
+    @apply transition-all duration-400 ease-out transform;
+  }
+  
+  .card-animate:hover {
+    @apply shadow-2xl scale-[1.02] -translate-y-1;
+  }
+
+  /* Input Animations */
+  .input-animate {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  .input-animate:focus {
+    @apply scale-[1.02] shadow-lg ring-4 ring-blue-500/20;
+  }
+
+  /* Progress Bar Animation */
+  .progress-animate {
+    @apply transition-all duration-700 ease-out;
+  }
+
+  /* Loading Animations */
+  .loading-dots {
+    @apply animate-pulse;
+  }
+  
+  .spinner-glow {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+    animation: spinGlow 1s linear infinite;
+  }
+}
+
+/* Keyframe Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bounceSoft {
+  0% { opacity: 0; transform: scale(0.3); }
+  50% { opacity: 1; transform: scale(1.05); }
+  70% { transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.6); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+@keyframes spinGlow {
+  0% { transform: rotate(0deg); box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+  50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.8); }
+  100% { transform: rotate(360deg); box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
 }

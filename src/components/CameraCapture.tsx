@@ -34,7 +34,17 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResults, setAnalysisResults] = useState<any>(null);
+  const [analysisResults, setAnalysisResults] = useState<{
+    drink_recommendation?: string;
+    drink_name?: string;
+    description?: string;
+    ingredients?: string[];
+    instructions?: string[];
+    mood?: string;
+    age?: string;
+    drink?: string;
+    emotion?: string;
+  } | null>(null);
   const [analysisFailed, setAnalysisFailed] = useState(false);
   const [drinkDetails, setDrinkDetails] = useState<DrinkMenu | null>(null);
   const [fortuneData, setFortuneData] = useState<Fortune | null>(null);
@@ -610,7 +620,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
 
             {/* Pre-Capture Form - Step by Step */}
             {!preCaptureCompleted && !isActive && !capturedPhoto && !showLeadForm && !showThankYou && !showProcessingScreen && !showResponseImage && (
-              <div className="max-w-4xl lg:max-w-6xl mx-auto space-y-6 px-4 lg:px-8">
+              <div className="max-w-4xl lg:max-w-6xl mx-auto space-y-6 px-4 lg:px-8 animate-fade-in">
                 {/* Progress indicator */}
                 <div className="text-left mb-6">
                   <div className="flex items-center justify-between mb-4">
@@ -619,9 +629,9 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                       Step {currentStep} of 4
                     </span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2">
+                                          <div className="w-full bg-muted rounded-full h-2">
                     <div 
-                      className="bg-gradient-to-r from-primary to-primary-glow h-2 rounded-full transition-all duration-300"
+                      className="bg-gradient-to-r from-primary to-primary-glow h-2 rounded-full progress-animate animate-pulse-glow"
                       style={{ width: `${(currentStep / 4) * 100}%` }}
                     />
                   </div>
@@ -641,7 +651,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                         placeholder="Enter your name"
                         value={preCaptureData.name}
                         onChange={(e) => setPreCaptureData(prev => ({ ...prev, name: e.target.value }))}
-                        className="h-14 lg:h-16 text-lg lg:text-xl text-center rounded-xl border-2 focus:border-primary"
+                        className="h-14 lg:h-16 text-lg lg:text-xl text-center rounded-xl border-2 focus:border-primary input-animate"
                         autoComplete="off"
                         autoFocus
                       />
@@ -665,15 +675,15 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                         }
                         className="space-y-4"
                       >
-                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-colors">
+                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-md animate-slide-up">
                           <RadioGroupItem value="male" id="male" className="h-5 w-5" />
                           <Label htmlFor="male" className="text-lg lg:text-xl cursor-pointer flex-1">Male</Label>
                         </div>
-                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-colors">
+                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-md animate-slide-up" style={{ animationDelay: '0.1s' }}>
                           <RadioGroupItem value="female" id="female" className="h-5 w-5" />
                           <Label htmlFor="female" className="text-lg lg:text-xl cursor-pointer flex-1">Female</Label>
                         </div>
-                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-colors">
+                        <div className="flex items-center space-x-4 p-4 rounded-xl border-2 hover:border-primary/50 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-md animate-slide-up" style={{ animationDelay: '0.2s' }}>
                           <RadioGroupItem value="other" id="other" className="h-5 w-5" />
                           <Label htmlFor="other" className="text-lg lg:text-xl cursor-pointer flex-1">Other</Label>
                         </div>
@@ -742,11 +752,11 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
 
                 {/* Navigation buttons */}
                 <div className="pt-6 lg:pt-8">
-                  <div className="max-w-md mx-auto">
+                  <div className="max-w-md mx-auto animate-fade-in">
                     {currentStep === 1 ? (
                       <Button
                         onClick={handleStepNext}
-                        className="w-full bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-base lg:text-lg py-4 lg:py-5 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                        className="w-full btn-primary-enhanced animate-scale-in"
                       >
                         Next
                         <ArrowRight className="ml-2 h-5 w-5" />
@@ -755,14 +765,13 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                       <div className="grid grid-cols-2 gap-4">
                         <Button
                           onClick={handleStepPrev}
-                          variant="outline"
-                          className="py-4 lg:py-5 text-base lg:text-lg rounded-xl border-2 hover:bg-muted transition-all duration-200"
+                          className="btn-outline-enhanced animate-slide-up"
                         >
                           Back
                         </Button>
                         <Button
                           onClick={handleStepNext}
-                          className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-base lg:text-lg py-4 lg:py-5 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                          className="btn-primary-enhanced animate-slide-up"
                         >
                           {currentStep === 4 ? (
                             <>
@@ -785,9 +794,9 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
 
             {/* Camera Ready - After Pre-Capture */}
             {preCaptureCompleted && !isActive && !capturedPhoto && !showLeadForm && !showThankYou && !showProcessingScreen && !showResponseImage && (
-              <div className="text-center space-y-6 lg:space-y-8 px-4 lg:px-8">
+              <div className="text-center space-y-6 lg:space-y-8 px-4 lg:px-8 animate-scale-in">
                 <div className="flex items-center justify-center gap-4 lg:gap-6">
-                  <div className="w-12 h-12 lg:w-16 lg:h-16 bg-gradient-to-br from-primary to-primary-glow rounded-full flex items-center justify-center shadow-lg">
+                  <div className="w-12 h-12 lg:w-16 lg:h-16 bg-gradient-to-br from-primary to-primary-glow rounded-full flex items-center justify-center shadow-lg animate-float">
                     <Camera className="h-6 w-6 lg:h-8 lg:w-8 text-primary-foreground" />
                   </div>
                   <h3 className="text-2xl lg:text-3xl font-semibold text-foreground">Ready to Capture</h3>
@@ -815,15 +824,14 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                   <div className="flex flex-col md:flex-row gap-4 lg:gap-6 justify-center max-w-3xl mx-auto">
                     <Button
                       onClick={() => setPreCaptureCompleted(false)}
-                      variant="outline"
-                      className="px-6 py-4 lg:px-8 lg:py-6 text-base lg:text-lg rounded-2xl border-2 hover:bg-muted/50"
+                      className="btn-outline-enhanced animate-slide-up"
                     >
                       Edit Preferences
                     </Button>
                     <Button
                       onClick={startCamera}
                       disabled={isLoading}
-                      className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-lg lg:text-xl px-8 py-4 lg:px-10 lg:py-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                      className="btn-primary-enhanced animate-scale-in text-lg lg:text-xl px-10 lg:px-12 py-4 lg:py-6"
                     >
                       {isLoading ? (
                         <>
@@ -949,15 +957,15 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                     <div className="p-8 lg:p-12">
                       {/* Action buttons */}
                       <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 max-w-4xl mx-auto">
-                        <Button
-                          onClick={retakePhoto} 
-                          variant="outline"
-                          size="lg"
-                          className="flex-1 text-lg lg:text-xl py-6 lg:py-8 rounded-2xl bg-white/10 border-white/30 text-white hover:bg-white/20 backdrop-blur-sm min-h-[72px] lg:min-h-[80px]"
-                        >
-                          <RotateCcw className="h-6 w-6 lg:h-8 lg:w-8 mr-3" />
-                          Retake
-                        </Button>
+                                                  <Button
+                            onClick={retakePhoto} 
+                            variant="outline"
+                            size="lg"
+                            className="flex-1 text-lg lg:text-xl py-6 lg:py-8 rounded-full bg-white/10 border-white/30 text-white hover:bg-white/20 backdrop-blur-sm min-h-[72px] lg:min-h-[80px] transition-all duration-300 transform hover:scale-105 active:scale-95"
+                          >
+                            <RotateCcw className="h-6 w-6 lg:h-8 lg:w-8 mr-3" />
+                            Retake
+                          </Button>
                         
                         {analysisFailed ? (
                           <>
@@ -966,7 +974,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                               disabled={isProcessing}
                               size="lg"
                               variant="outline"
-                              className="flex-1 text-lg lg:text-xl py-6 lg:py-8 rounded-2xl bg-white/10 border-white/30 text-white hover:bg-white/20 backdrop-blur-sm min-h-[72px] lg:min-h-[80px]"
+                              className="flex-1 text-lg lg:text-xl py-6 lg:py-8 rounded-full bg-white/10 border-white/30 text-white hover:bg-white/20 backdrop-blur-sm min-h-[72px] lg:min-h-[80px] transition-all duration-300 transform hover:scale-105 active:scale-95"
                             >
                               <RotateCcw className="h-6 w-6 lg:h-8 lg:w-8 mr-3" />
                               Try Again
@@ -974,7 +982,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                             <Button
                               onClick={proceedToLeadForm}
                               size="lg"
-                              className="flex-1 text-lg lg:text-xl py-6 lg:py-8 rounded-2xl shadow-lg min-h-[72px] lg:min-h-[80px] bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white"
+                              className="flex-1 text-lg lg:text-xl py-6 lg:py-8 rounded-2xl shadow-lg min-h-[72px] lg:min-h-[80px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white transition-all duration-300 transform hover:scale-105 animate-pulse-glow"
                             >
                               <ArrowRight className="h-6 w-6 lg:h-8 lg:w-8 mr-3" />
                               Proceed Anyway
@@ -985,7 +993,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                             onClick={saveLead}
                             disabled={isProcessing}
                             size="lg"
-                            className="flex-1 text-lg lg:text-xl py-6 lg:py-8 rounded-2xl shadow-lg min-h-[72px] lg:min-h-[80px] bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary"
+                            className="flex-1 text-lg lg:text-xl py-6 lg:py-8 rounded-full shadow-lg min-h-[72px] lg:min-h-[80px] bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary transition-all duration-300 transform hover:scale-105 active:scale-95 animate-pulse-glow"
                           >
                             <ArrowRight className="h-6 w-6 lg:h-8 lg:w-8 mr-3" />
                             Analyze & Save
@@ -1220,7 +1228,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                     saveLeadToDatabase();
                   }}
                   disabled={isProcessing}
-                  className="w-full bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-lg lg:text-xl py-5 lg:py-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                  className="w-full btn-primary-enhanced text-lg lg:text-xl py-5 lg:py-6 animate-bounce-soft"
                 >
                   {isProcessing ? (
                     <>
@@ -1244,10 +1252,10 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                   <div className="flex-1 relative">
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center bg-white/10 backdrop-blur-md rounded-3xl p-12 lg:p-16 mx-6 lg:mx-8 border border-white/30 max-w-2xl">
-                        <div className="mx-auto w-24 h-24 lg:w-32 lg:h-32 mb-8 lg:mb-10 relative">
+                        <div className="mx-auto w-24 h-24 lg:w-32 lg:h-32 mb-8 lg:mb-10 relative animate-scale-in">
                           <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-primary/30"></div>
-                          <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-transparent border-t-primary animate-spin"></div>
-                          <CheckCircle className="absolute inset-4 lg:inset-6 h-16 w-16 lg:h-20 lg:w-20 text-primary" />
+                          <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-transparent border-t-primary spinner-glow"></div>
+                          <CheckCircle className="absolute inset-4 lg:inset-6 h-16 w-16 lg:h-20 lg:w-20 text-primary animate-float" />
                         </div>
                         <h3 className="text-3xl lg:text-4xl font-semibold text-white mb-4 lg:mb-6">Processing</h3>
                         <p className="text-white/80 text-xl lg:text-2xl mb-6 lg:mb-8">Creating your personalized image...</p>
