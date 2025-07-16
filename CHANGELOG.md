@@ -69,3 +69,11 @@
 - **Lead Management**: Complete CRM functionality
 - **Mobile Optimized**: Touch-friendly interface with camera integration
 - **Netlify Ready**: Production deployment configuration 
+
+## [Unreleased]
+### Changed
+- Thank you card border radius increased for a rounder look.
+- Removed the white background from the processing (analyzing) overlay card for a cleaner UI.
+- Removed the ArrowRight icon from the 'Send to Me' button on the response image screen.
+- Removed the RotateCcw icon from the 'Give Me a Different Look' button.
+- Minor UI/UX tweaks for consistency and clarity. 

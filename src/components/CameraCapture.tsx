@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createLead, analyzeImageWithN8N, getDrinkByName, DrinkMenu, base64ToBlob, sendToN8NWebhook, getFortuneByMood, Fortune } from '@/lib/supabase';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import logo from '@/assets/logo.png';
 
 interface CameraCaptureProps {
   onPhotoTaken?: (photoData: string) => void;
@@ -584,24 +585,33 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
     }
   }, [capturedPhoto, leadFormData, preCaptureData, analysisResults, constructCategory, showAlert, onLeadSaved]);
 
+  // Add email and phone validation helpers at the top of the component
+  const validateEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+  const validatePhone = (phone: string) => {
+    // Accepts 081200000000 or 81200000000, 10-15 digits, may start with 0
+    return /^(0?\d{10,15})$/.test(phone.replace(/\D/g, ''));
+  };
+
   return (
     <div className="space-y-8 lg:space-y-12">
       {/* Centralized Alert Container at the Top */}
       {currentAlert && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md mx-auto px-4">
-                      <Alert 
-              variant={currentAlert.type} 
-              className="shadow-lg relative"
-            >
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <div className="font-medium mb-1">
-                  {currentAlert.title}
-                </div>
-                <div className="text-sm opacity-90">
-                  {currentAlert.description}
-                </div>
-              </AlertDescription>
+          <Alert 
+            variant={currentAlert.type} 
+            className="bg-white shadow-lg rounded-xl relative"
+          >
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="font-medium mb-1">
+                {currentAlert.title}
+              </div>
+              <div className="text-sm opacity-90">
+                {currentAlert.description}
+              </div>
+            </AlertDescription>
             <Button
               variant="ghost"
               size="sm"
@@ -651,7 +661,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                         placeholder="Enter your name"
                         value={preCaptureData.name}
                         onChange={(e) => setPreCaptureData(prev => ({ ...prev, name: e.target.value }))}
-                        className="h-14 lg:h-16 text-lg lg:text-xl text-center rounded-xl border-2 focus:border-primary input-animate"
+                        className="h-14 lg:h-16 text-lg lg:text-xl text-center rounded-xl border-2 focus:border-primary input-animate bg-white"
                         autoComplete="off"
                         autoFocus
                       />
@@ -820,18 +830,20 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                   
                   <p className="text-base lg:text-lg text-muted-foreground mb-6 lg:mb-8 max-w-2xl mx-auto">Take a photo to get your personalized drink recommendation</p>
                   
-                  
-                  <div className="flex flex-col md:flex-row gap-4 lg:gap-6 justify-center max-w-3xl mx-auto">
+                  {/* Updated button layout for always-vertical, mobile-friendly, uniform buttons */}
+                  <div className="flex flex-col gap-3 w-full max-w-md mx-auto">
                     <Button
                       onClick={() => setPreCaptureCompleted(false)}
-                      className="btn-outline-enhanced animate-slide-up"
+                      variant="outline"
+                      className="w-full text-lg lg:text-xl py-4 lg:py-6 rounded-xl border-2 border-primary font-semibold bg-white text-primary hover:bg-primary/10 focus:bg-primary/10"
                     >
                       Edit Preferences
                     </Button>
                     <Button
                       onClick={startCamera}
                       disabled={isLoading}
-                      className="btn-primary-enhanced animate-scale-in text-lg lg:text-xl px-10 lg:px-12 py-4 lg:py-6"
+                      variant="default"
+                      className="w-full text-lg lg:text-xl py-4 lg:py-6 rounded-xl font-semibold"
                     >
                       {isLoading ? (
                         <>
@@ -1042,100 +1054,54 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
 
             {/* Analysis Results Screen */}
             {showAnalysisResults && capturedPhoto && !showThankYou && !showProcessingScreen && !showResponseImage && (
-              <div className="max-w-2xl mx-auto space-y-4 px-4">
-                {/* Header with photo */}
-                <div className="text-center space-y-3">
-                  <div className="mx-auto w-16 h-16 rounded-xl overflow-hidden border-2 border-primary/20 shadow-lg">
-                    <img
-                      src={capturedPhoto}
-                      alt="Your photo"
-                      className="w-full h-full object-cover"
-                    />
+              <div className="w-full max-w-lg mx-auto space-y-4 px-2 sm:px-4">
+                {/* Header with photo and text in a card */}
+                <div className="bg-card rounded-xl border border-primary/10 shadow-sm p-4 flex flex-col sm:flex-row items-center gap-4 mb-2">
+                  <div className="flex-shrink-0">
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden border-2 border-primary/20 shadow-lg mx-auto">
+                      <img
+                        src={capturedPhoto}
+                        alt="Your photo"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
                   </div>
-                  <h3 className="text-xl font-bold text-foreground">Your Personalized Results</h3>
-                  <p className="text-sm text-muted-foreground">Here's what we found for you!</p>
+                  <div className="flex-1 text-center sm:text-left">
+                    <h3 className="text-xl font-bold text-foreground mb-1">Your Personalized Results</h3>
+                    <p className="text-sm text-muted-foreground">Here's what we found for you!</p>
+                  </div>
                 </div>
                 
-                {/* Analysis Results with Fortune Combined */}
+                {/* Analysis Results - Only show drink name, mood, age, and fortune */}
                 {analysisResults && (
-                  <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-xl p-4">
-                    <div className="flex items-center justify-center space-x-2 mb-4">
+                  <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-xl p-4 space-y-4">
+                    <div className="flex items-center justify-center space-x-2 mb-2">
                       <CheckCircle className="h-5 w-5 text-primary" />
                       <p className="font-semibold text-foreground text-base">Analysis Complete!</p>
                     </div>
-                    
                     {analysisResults.drink && (
-                      <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm mb-4">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center text-center sm:text-left gap-2 mb-3">
-                          <h3 className="text-lg font-bold text-primary flex-shrink-0">🍹 Your Perfect Drink</h3>
-                          <div className="flex items-center gap-2 ml-0 sm:ml-4 sm:justify-end w-full">
-                            <div className="bg-gradient-to-r from-primary to-primary-glow text-primary-foreground px-4 py-2 rounded-full inline-block text-base font-semibold shadow-lg">
-                              {analysisResults.drink}
-                            </div>
-                          </div>
-                        </div>
-                        {drinkDetails?.feel && (
-                          <div className="mt-1 mb-2 text-xs text-muted-foreground font-medium whitespace-nowrap text-right pr-4 sm:pr-6">{drinkDetails.feel}</div>
-                        )}
-                        {drinkDetails && (
-                          <div className="rounded-lg p-3 mt-3 text-left">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
-                              {drinkDetails.type && (
-                                <div className="mb-2">
-                                  <span className="text-xs font-medium text-muted-foreground">TYPE</span>
-                                  <div className="text-foreground text-sm">{drinkDetails.type}</div>
-                                </div>
-                              )}
-                              {drinkDetails.glass_type && (
-                                <div className="mb-2">
-                                  <span className="text-xs font-medium text-muted-foreground">GLASS TYPE</span>
-                                  <div className="text-foreground text-sm">{drinkDetails.glass_type}</div>
-                                </div>
-                              )}
-                              {drinkDetails.main_ingredients && (
-                                <div className="mb-2">
-                                  <span className="text-xs font-medium text-muted-foreground">MAIN INGREDIENTS</span>
-                                  <div className="text-foreground text-sm">{drinkDetails.main_ingredients}</div>
-                                </div>
-                              )}
-                              {drinkDetails.emotion && (
-                                <div className="mb-2">
-                                  <span className="text-xs font-medium text-muted-foreground">EMOTION</span>
-                                  <div className="text-foreground text-sm">{drinkDetails.emotion}</div>
-                                </div>
-                              )}
-                            </div>
-                            {/* Ingredients out of columns, after columns */}
-                            {drinkDetails.ingredients && (
-                              <div className="mt-4">
-                                <span className="text-xs font-medium text-muted-foreground">INGREDIENTS</span>
-                                <div className="text-foreground text-sm whitespace-pre-line">{drinkDetails.ingredients}</div>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                      <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm mb-2 text-center">
+                        <span className="text-xs font-medium text-muted-foreground block mb-1">YOUR DRINK</span>
+                        <span className="text-lg font-bold text-primary">{analysisResults.drink}</span>
                       </div>
                     )}
-                    
-                    <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="grid grid-cols-2 gap-3 mb-2">
                       {analysisResults.mood && (
                         <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm text-center">
-                          <p className="text-xs font-medium text-muted-foreground mb-1">YOUR MOOD</p>
-                          <p className="text-sm font-bold text-foreground">{analysisResults.mood}</p>
+                          <span className="text-xs font-medium text-muted-foreground block mb-1">YOUR MOOD</span>
+                          <span className="text-sm font-bold text-foreground">{analysisResults.mood}</span>
                         </div>
                       )}
-                      
                       {analysisResults.age && (
                         <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm text-center">
-                          <p className="text-xs font-medium text-muted-foreground mb-1">ESTIMATED AGE</p>
-                          <p className="text-sm font-bold text-foreground">{analysisResults.age} years</p>
+                          <span className="text-xs font-medium text-muted-foreground block mb-1">ESTIMATED AGE</span>
+                          <span className="text-sm font-bold text-foreground">{analysisResults.age} years</span>
                         </div>
                       )}
                     </div>
-                    
-                    {/* Fortune Display - Combined inside Analysis Card */}
+                    {/* Fortune Display */}
                     {fortuneData && (analysisResults?.mood || analysisResults?.emotion) && (
-                      <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm mb-4">
+                      <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm mb-2">
                         <div className="text-center">
                           <h3 className="text-lg font-bold text-primary mb-3">🔮 Your Fortune</h3>
                           <div className="space-y-3">
@@ -1147,21 +1113,6 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                             </div>
                           </div>
                         </div>
-                      </div>
-                    )}
-                    
-
-
-                    
-                    {/* Show raw data as fallback if structure is different */}
-                    {(!analysisResults.mood && !analysisResults.age && !analysisResults.drink) && (
-                      <div className="bg-card rounded-lg p-3 border border-primary/10">
-                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono max-h-32 overflow-y-auto">
-                          {typeof analysisResults === 'string' 
-                            ? analysisResults 
-                            : JSON.stringify(analysisResults, null, 2)
-                          }
-                        </pre>
                       </div>
                     )}
                   </div>
@@ -1182,17 +1133,16 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
 
             {/* Your Information Form - After Analysis */}
             {showLeadForm && capturedPhoto && !showProcessingScreen && !showResponseImage && !showThankYou && (
-              <div className="max-w-4xl lg:max-w-6xl mx-auto space-y-6 px-4 lg:px-8">
+              <div className="max-w-md mx-auto space-y-6 px-4 lg:px-8">
                 {/* Header */}
                 <div className="text-center space-y-4 mb-8">
                   <h3 className="text-2xl lg:text-3xl font-bold text-foreground">Almost Done!</h3>
                   <p className="text-base lg:text-lg text-muted-foreground">Enter your contact details to save your personalized recommendation</p>
                 </div>
 
-
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-                  <div className="space-y-3 lg:space-y-4">
+                {/* Stacked input fields */}
+                <div className="space-y-5">
+                  <div className="space-y-2">
                     <Label htmlFor="email" className="text-lg lg:text-xl font-medium">Email Address *</Label>
                     <Input
                       id="email"
@@ -1200,12 +1150,11 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                       placeholder="your@example.com"
                       value={leadFormData.email}
                       onChange={(e) => setLeadFormData(prev => ({ ...prev, email: e.target.value }))}
-                      className="h-14 lg:h-16 text-base lg:text-lg rounded-xl border-2 focus:border-primary"
+                      className="h-14 lg:h-16 text-base lg:text-lg rounded-xl border-2 focus:border-primary w-full bg-white"
                       autoComplete="off"
                     />
                   </div>
-                  
-                  <div className="space-y-3 lg:space-y-4">
+                  <div className="space-y-2">
                     <Label htmlFor="whatsapp" className="text-lg lg:text-xl font-medium">WhatsApp Number *</Label>
                     <Input
                       id="whatsapp"
@@ -1213,7 +1162,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                       placeholder="+62 812-3456-7890"
                       value={leadFormData.whatsapp}
                       onChange={(e) => setLeadFormData(prev => ({ ...prev, whatsapp: e.target.value }))}
-                      className="h-14 lg:h-16 text-base lg:text-lg rounded-xl border-2 focus:border-primary"
+                      className="h-14 lg:h-16 text-base lg:text-lg rounded-xl border-2 focus:border-primary w-full bg-white"
                       autoComplete="off"
                     />
                   </div>
@@ -1223,6 +1172,14 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                   onClick={() => {
                     if (!leadFormData.email || !leadFormData.whatsapp) {
                       showAlert("destructive", "Missing Information", "Please fill in email and WhatsApp number.");
+                      return;
+                    }
+                    if (!validateEmail(leadFormData.email)) {
+                      showAlert("destructive", "Invalid Email", "Please enter a valid email address.");
+                      return;
+                    }
+                    if (!validatePhone(leadFormData.whatsapp)) {
+                      showAlert("destructive", "Invalid Phone Number", "Please enter a valid phone number (e.g. 081200000000 or 81200000000).");
                       return;
                     }
                     saveLeadToDatabase();
@@ -1247,23 +1204,38 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
 
             {/* Processing Screen */}
             {showProcessingScreen && (
-              <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-lg">
+              <div className="fixed inset-0 z-50">
                 <div className="relative w-full h-full flex flex-col">
-                  <div className="flex-1 relative">
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center bg-white/10 backdrop-blur-md rounded-3xl p-12 lg:p-16 mx-6 lg:mx-8 border border-white/30 max-w-2xl">
-                        <div className="mx-auto w-24 h-24 lg:w-32 lg:h-32 mb-8 lg:mb-10 relative animate-scale-in">
-                          <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-primary/30"></div>
-                          <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-transparent border-t-primary spinner-glow"></div>
-                          <CheckCircle className="absolute inset-4 lg:inset-6 h-16 w-16 lg:h-20 lg:w-20 text-primary animate-float" />
-                        </div>
-                        <h3 className="text-3xl lg:text-4xl font-semibold text-white mb-4 lg:mb-6">Processing</h3>
-                        <p className="text-white/80 text-xl lg:text-2xl mb-6 lg:mb-8">Creating your personalized image...</p>
-                        <div className="flex items-center justify-center space-x-2 lg:space-x-3">
-                          <div className="w-3 h-3 lg:w-4 lg:h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                          <div className="w-3 h-3 lg:w-4 lg:h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                          <div className="w-3 h-3 lg:w-4 lg:h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                        </div>
+                  {/* Blurred photo background if available */}
+                  {capturedPhoto ? (
+                    <div
+                      className="absolute inset-0 w-full h-full"
+                      style={{
+                        backgroundImage: `url(${capturedPhoto})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        filter: 'blur(8px)',
+                        opacity: 0.4,
+                        zIndex: 1,
+                      }}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 w-full h-full bg-black/50 backdrop-blur-lg z-1" />
+                  )}
+                  {/* Overlay loading card */}
+                  <div className="relative flex-1 flex items-center justify-center z-10">
+                    <div className="text-center bg-transparent backdrop-blur-sm rounded-3xl p-12 lg:p-16 mx-6 lg:mx-8 border border-white/30 max-w-2xl">
+                      <div className="mx-auto w-24 h-24 lg:w-32 lg:h-32 mb-8 lg:mb-10 relative animate-scale-in">
+                        <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-primary/30"></div>
+                        <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-transparent border-t-primary spinner-glow"></div>
+                        <CheckCircle className="absolute inset-4 lg:inset-6 h-16 w-16 lg:h-20 lg:w-20 text-primary animate-float" />
+                      </div>
+                      <h3 className="text-3xl lg:text-4xl font-semibold text-white mb-4 lg:mb-6">Processing</h3>
+                      <p className="text-white/80 text-xl lg:text-2xl mb-6 lg:mb-8">Creating your personalized image...</p>
+                      <div className="flex items-center justify-center space-x-2 lg:space-x-3">
+                        <div className="w-3 h-3 lg:w-4 lg:h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-3 h-3 lg:w-4 lg:h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-3 h-3 lg:w-4 lg:h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                       </div>
                     </div>
                   </div>
@@ -1299,11 +1271,11 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                 </div>
 
                 {/* Send to Me and Re-generate Buttons */}
-                <div className="text-center pt-3 flex flex-col sm:flex-row gap-4 justify-center">
+                <div className="text-center pt-3 flex flex-col gap-3 w-full max-w-md mx-auto">
                   <Button
                     onClick={sendImageToUser}
                     disabled={isProcessing || isRegenerating}
-                    className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-base py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                    className="w-full bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary text-base py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 font-semibold"
                   >
                     {isProcessing ? (
                       <>
@@ -1311,17 +1283,14 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                         Sending...
                       </>
                     ) : (
-                      <>
-                        Send to Me
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </>
+                      <>Send to Me</>
                     )}
                   </Button>
                   <Button
                     onClick={reGenerateImage}
                     disabled={isRegenerating || isProcessing}
                     variant="outline"
-                    className="text-base py-3 px-6 rounded-xl border-2 border-primary hover:bg-primary/10 transition-all duration-200 transform hover:scale-105"
+                    className="w-full bg-white text-primary border-primary border-2 text-base py-3 px-6 rounded-xl font-semibold hover:bg-primary/10 transition-all duration-200 transform hover:scale-105"
                   >
                     {isRegenerating ? (
                       <>
@@ -1331,7 +1300,6 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                     ) : (
                       <>
                         Give Me a Different Look
-                        <RotateCcw className="ml-2 h-4 w-4" />
                       </>
                     )}
                   </Button>
@@ -1339,24 +1307,47 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
               </div>
             )}
 
-            {/* Thank You Screen - Simple */}
+            {/* Thank You Screen - Thank you message in a white card */}
             {showThankYou && (
-              <div className="max-w-xl mx-auto px-4 lg:px-8">
-                <div className="text-center space-y-6 lg:space-y-8">
-                  {/* Simple Success Icon */}
-                  <div className="mx-auto w-20 h-20 lg:w-24 lg:h-24 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center shadow-xl">
-                    <CheckCircle className="h-10 w-10 lg:h-12 lg:w-12 text-white" />
+              <div className="fixed inset-0 min-h-screen w-full flex flex-col items-center justify-start bg-[#0A1B36] py-8 px-0 z-50">
+                {/* Thank you card */}
+                <div className="w-80 max-w-md bg-white rounded-3xl shadow-lg mx-11 mt-12 mb-8 p-2 flex flex-col items-center">
+                  <div className="mb-4">
+                    <CheckCircle className="h-12 w-12 text-[#0A1B36]" />
                   </div>
-                  
-                  {/* Simple Thank You Message */}
-                  <div className="space-y-3 lg:space-y-4">
-                    <h2 className="text-3xl lg:text-4xl font-bold text-foreground">
-                      Thank You!
-                    </h2>
-                    <p className="text-lg lg:text-xl text-muted-foreground">
-                      Have a great day! ✨
-                    </p>
+                  <h1 className="text-lg font-bold text-[#0A1B36] mb-2">Thank You!</h1>
+                  <p className="text-m text-[#0A1B36]">Have a great day!</p>
+                </div>
+                {/* DELIFRU logo and tagline */}
+                <div className="flex flex-col items-center mb-10">
+                  <img src={logo} alt="DELIFRU Logo" className="w-32 h-auto mb-1" />
+                </div>
+                {/* Socialize with Us section */}
+                <div className="flex flex-col items-center mb-8 w-full">
+                  <span className="text-lg font-bold text-white mb-4">Socialize with Us</span>
+                  <div className="flex flex-col items-center gap-2 text-white text-base">
+                    <span className="flex items-center gap-2">
+                      <span role="img" aria-label="web">🌐</span>
+                      www.delifru.co.id
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span role="img" aria-label="ig">📷</span>
+                      @delifru.id
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span role="img" aria-label="ig">📷</span>
+                      @indeljens.id
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span role="img" aria-label="ig">📷</span>
+                      @bubuqu.id
+                    </span>
                   </div>
+                </div>
+                {/* Address section */}
+                <div className="flex flex-col items-center text-center text-white text-sm font-medium">
+                  <span className="mb-1">Jl. Kedoya Pesing No.24, RT.2/RW.2, Kedoya Sel.,</span>
+                  <span>Kec. Kb. Jeruk, Jakarta Barat, Jakarta 11520</span>
                 </div>
               </div>
             )}

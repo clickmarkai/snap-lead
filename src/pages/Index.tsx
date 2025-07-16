@@ -25,10 +25,7 @@ const Index = () => {
       <div className="min-h-screen flex flex-col">
         {/* DELIFRU Header Branding */}
         <div className="flex-shrink-0 text-center py-8 lg:py-12">
-          <div className="text-white">
-            <h1 className="text-2xl lg:text-3xl font-bold tracking-wider">DELIFRU</h1>
-            <p className="text-sm lg:text-base font-medium opacity-90 tracking-wide">FLAVOR EXPERT</p>
-          </div>
+          <img src={logoImage} alt="DELIFRU Logo" className="mx-auto w-48 h-auto" />
         </div>
 
         {/* Main Content Container */}
@@ -50,10 +47,8 @@ const Index = () => {
       </div>
       
       {/* Version Display - Bottom Left */}
-      <div className="fixed bottom-4 left-4 z-10">
-        <p className="text-xs text-white/50 font-mono">
-          v{packageJson.version}
-        </p>
+      <div className="text-center mt-8 mb-4">
+        <span className="text-xs text-muted-foreground">v{packageJson.version}</span>
       </div>
     </div>
   );
