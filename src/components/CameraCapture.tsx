@@ -1058,13 +1058,13 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                 {/* Header with photo and text in a card */}
                 <div className="bg-card rounded-xl border border-primary/10 shadow-sm p-4 flex flex-col sm:flex-row items-center gap-4 mb-2">
                   <div className="flex-shrink-0">
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden border-2 border-primary/20 shadow-lg mx-auto">
+                    {/* <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden border-2 border-primary/20 shadow-lg mx-auto">
                       <img
                         src={capturedPhoto}
                         alt="Your photo"
                         className="w-full h-full object-cover"
                       />
-                    </div>
+                    </div> */}
                   </div>
                   <div className="flex-1 text-center sm:text-left">
                     <h3 className="text-xl font-bold text-foreground mb-1">Your Personalized Results</h3>
@@ -1079,12 +1079,6 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                       <CheckCircle className="h-5 w-5 text-primary" />
                       <p className="font-semibold text-foreground text-base">Analysis Complete!</p>
                     </div>
-                    {analysisResults.drink && (
-                      <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm mb-2 text-center">
-                        <span className="text-xs font-medium text-muted-foreground block mb-1">YOUR DRINK</span>
-                        <span className="text-lg font-bold text-primary">{analysisResults.drink}</span>
-                      </div>
-                    )}
                     <div className="grid grid-cols-2 gap-3 mb-2">
                       {analysisResults.mood && (
                         <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm text-center">
@@ -1111,6 +1105,36 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                                 {fortuneData.fortune_story}
                               </p>
                             </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {/* Drink Display - Moved below fortune */}
+                    {analysisResults.drink && (
+                      <div className="bg-card rounded-lg p-3 border border-primary/10 shadow-sm mb-2">
+                        <div className="flex items-center gap-4">
+                          {/* Drink Image */}
+                          {drinkDetails?.image_url && (
+                            <div className="flex-shrink-0">
+                              <img
+                                src={drinkDetails.image_url}
+                                alt={analysisResults.drink}
+                                className="w-24 h-24 lg:w-32 lg:h-32 rounded-xl object-cover border-2 border-primary/30 shadow-lg animate-pulse-glow"
+                                style={{
+                                  boxShadow: '0 0 20px rgba(59, 130, 246, 0.3), 0 0 40px rgba(59, 130, 246, 0.1)',
+                                  filter: 'drop-shadow(0 0 8px rgba(59, 130, 246, 0.4))'
+                                }}
+                                onError={(e) => {
+                                  // Hide image if it fails to load
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          )}
+                          {/* Drink Name */}
+                          <div className="flex-1 text-left">
+                            <span className="text-xs font-medium text-muted-foreground block mb-1">YOUR DRINK</span>
+                            <span className="text-base font-bold text-primary">{analysisResults.drink}</span>
                           </div>
                         </div>
                       </div>
@@ -1269,6 +1293,23 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                     />
                   </div>
                 </div>
+
+                {/* Drink Image */}
+                {analysisResults?.drink && drinkDetails?.image_url && (
+                  <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-xl p-4">
+                    <div className="bg-card rounded-lg p-4 border border-primary/10 shadow-sm">
+                      <img
+                        src={drinkDetails.image_url}
+                        alt={analysisResults.drink}
+                        className="w-full h-auto rounded-lg shadow-lg"
+                        onError={(e) => {
+                          // Hide image if it fails to load
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Send to Me and Re-generate Buttons */}
                 <div className="text-center pt-3 flex flex-col gap-3 w-full max-w-md mx-auto">

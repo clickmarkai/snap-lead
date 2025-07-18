@@ -41,6 +41,7 @@ export interface DrinkMenu {
   emotion: string | null;
   feel: string | null;
   description: string | null;
+  image_url: string | null;
 }
 
 export interface Fortune {

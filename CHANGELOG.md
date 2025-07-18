@@ -1,4 +1,25 @@
 # Changelog
+## [1.1.4] - 2024-12-19
+### Added
+- **Drink Image Integration**: Added drink images from Supabase database
+  - Drink images now display in analysis results with glowing border effect
+  - Drink images also show below generated personalized images
+  - Enhanced DrinkMenu interface to include image_url field
+  - Responsive image sizing with mobile/desktop optimization
+  - Graceful error handling for missing drink images
+
+### Changed
+- **UI Improvements**:
+  - Drink images feature glowing blue border effects with animation
+  - Moved "YOUR DRINK" card below fortune card in analysis results
+  - Reduced drink name font size and left-aligned text
+  - Added drink image display on personalized image page
+  - Consistent styling between generated images and drink images
+
+## [1.1.3] - 2024-12-19
+### Fixed
+- Changed UI
+
 ## [1.1.2] - 2024-07-15
 ### Fixed
 - Changed UI
