@@ -8,6 +8,7 @@ A production-ready React application for capturing and managing leads with AI-po
 
 - **🎯 Lead Capture**: Streamlined customer information collection with photo functionality
 - **🤖 AI Analysis**: Smart image analysis using N8N integration for personalized recommendations
+- **🔮 AI Fortune Generation**: Creative, personalized Indonesian fortune gimmicks and stories powered by OpenAI GPT-4o-mini
 - **📱 Camera Integration**: Mobile-optimized camera capture with real-time preview
 - **💾 Cloud Storage**: Secure photo storage using Supabase
 - **📊 Dashboard**: Comprehensive lead management and analytics
@@ -20,7 +21,7 @@ A production-ready React application for capturing and managing leads with AI-po
 - **UI Framework**: Radix UI + Tailwind CSS
 - **Database**: Supabase (PostgreSQL)
 - **Storage**: Supabase Storage
-- **AI Integration**: N8N webhooks
+- **AI Integration**: N8N webhooks + OpenAI GPT-4o-mini
 - **Build Tool**: Vite
 - **Deployment**: Railway
 
@@ -72,6 +73,7 @@ The application will be available at `https://localhost:8080` (HTTPS for camera 
 ```bash
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_OPENAI_API_KEY=your_openai_api_key
 ```
 
 ### Optional
@@ -82,6 +84,18 @@ VITE_APP_NAME=Snap Lead Export
 VITE_APP_VERSION=1.0.0
 VITE_DEV_MODE=false
 ```
+
+### OpenAI Configuration
+The application now includes AI-powered creative fortune generation using OpenAI's GPT-4o-mini. To enable this feature:
+
+1. Get your OpenAI API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+2. Add it to your `.env` file as `VITE_OPENAI_API_KEY`
+3. The application will automatically generate personalized Indonesian fortune gimmicks and stories based on the user's detected mood
+4. Features dual typing animations for engaging sequential display of gimmick and story
+
+**Language**: All fortunes are generated in Indonesian with authentic, casual expressions that resonate with local users.
+
+**Note**: OpenAI API calls are made from the browser. In a production environment, consider implementing server-side API calls for better security.
 
 ## 🏗 Project Structure
 

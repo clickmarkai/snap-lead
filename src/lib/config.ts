@@ -8,6 +8,9 @@ export interface AppConfig {
     webhookUrl: string;
     analyzeUrl: string;
   };
+  openai: {
+    apiKey: string;
+  };
   app: {
     name: string;
     version: string;
@@ -36,6 +39,9 @@ export const config: AppConfig = {
     webhookUrl: getEnvVar('VITE_N8N_WEBHOOK_URL', false),
     analyzeUrl: getEnvVar('VITE_N8N_ANALYZE_URL', false),
   },
+  openai: {
+    apiKey: getEnvVar('VITE_OPENAI_API_KEY'),
+  },
   app: {
     name: getEnvVar('VITE_APP_NAME', false) || 'DELIFRU',
     version: getEnvVar('VITE_APP_VERSION', false) || '1.0.0',
@@ -54,6 +60,10 @@ export const validateConfig = (): void => {
   
   if (!config.supabase.anonKey) {
     errors.push('Supabase anonymous key is required');
+  }
+
+  if (!config.openai.apiKey) {
+    errors.push('OpenAI API key is required');
   }
   
   if (errors.length > 0) {
@@ -75,4 +85,5 @@ export const features = {
   aiAnalysis: Boolean(config.n8n.webhookUrl && config.n8n.analyzeUrl),
   debugMode: config.app.isDevelopment,
   errorReporting: isProduction(),
+  aiFortuneGeneration: Boolean(config.openai.apiKey),
 }; 

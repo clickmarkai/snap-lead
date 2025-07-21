@@ -359,3 +359,16 @@
   50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.8); }
   100% { transform: rotate(360deg); box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
 }
+
+/* Typing cursor animation */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.typing-cursor {
+  animation: blink 1s infinite;
+  display: inline-block;
+  margin-left: 2px;
+  font-weight: bold;
+}

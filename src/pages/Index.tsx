@@ -21,34 +21,37 @@ const Index = () => {
 
   return (
     // DELIFRU Mobile Design Layout - Dark Blue Background
-    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #081629 0%, #0a1d3e 50%, #0c2347 100%)' }}>
-      <div className="min-h-screen flex flex-col">
-        {/* DELIFRU Header Branding */}
-        <div className="flex-shrink-0 text-center py-8 lg:py-12">
-          <img src={logoImage} alt="DELIFRU Logo" className="mx-auto w-48 h-auto" />
-        </div>
+    <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, #081629 0%, #0a1d3e 50%, #0c2347 100%)' }}>
+      {/* DELIFRU Header Branding */}
+      <div className="flex-shrink-0 text-center py-8 lg:py-12">
+        <img src={logoImage} alt="DELIFRU Logo" className="mx-auto w-48 h-auto" />
+      </div>
 
-        {/* Main Content Container */}
-        <div className="flex-1 flex items-center justify-center px-4 lg:px-8 pb-8">
-          {/* Main Content */}
-          <div className="w-full max-w-md lg:max-w-lg">
-            {currentView === 'camera' && (
-              <CameraCapture 
-                onPhotoTaken={(photoData) => {
-                  // Photo captured successfully
-                }}
-                onLeadSaved={handleLeadSaved}
-              />
-            )}
-            {currentView === 'leads' && <LeadsDashboard key={refreshTrigger} />}
-            {currentView === 'syrup' && <SyrupPhotoUpload />}
-          </div>
+      {/* Main Content Container */}
+      <div className="flex-1 flex items-center justify-center px-4 lg:px-8">
+        {/* Main Content */}
+        <div className="w-full max-w-md lg:max-w-xl">
+          {currentView === 'camera' && (
+            <CameraCapture 
+              onPhotoTaken={(photoData) => {
+                // Photo captured successfully
+              }}
+              onLeadSaved={handleLeadSaved}
+            />
+          )}
+          {currentView === 'leads' && <LeadsDashboard key={refreshTrigger} />}
+          {currentView === 'syrup' && <SyrupPhotoUpload />}
         </div>
       </div>
       
-      {/* Version Display - Bottom Left */}
-      <div className="text-center mt-8 mb-4">
-        <span className="text-xs text-muted-foreground">v{packageJson.version}</span>
+      {/* Footer */}
+      <div className="text-center py-4 space-y-1">
+        <div className="text-xs text-muted-foreground/60">
+          POWERED BY CLICKMARK AI
+        </div>
+        <div className="text-xs text-muted-foreground">
+          v{packageJson.version}
+        </div>
       </div>
     </div>
   );

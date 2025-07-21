@@ -1,4 +1,44 @@
 # Changelog
+## [1.1.5] - 2024-12-19
+### Added
+- **AI-Powered Fortune Generation**: Integrated OpenAI GPT-4o-mini for creative Indonesian fortunes
+  - Generates both gimmick and fortune_story in Indonesian language
+  - Personalized fortune messages based on detected user mood
+  - Creative enhancement that ensures no duplicate context
+  - Uses authentic Indonesian expressions and casual language
+  - Fallback to original fortunes if OpenAI is unavailable
+  - Cost-effective implementation using GPT-4o-mini model
+  - Added OpenAI configuration to environment setup
+  - Enhanced Fortune interface for AI-generated content
+
+- **Dual Typing Animation System**: Added engaging typing effects for complete fortune display
+  - Gimmick animation: 30ms per character with 500ms initial delay
+  - Story animation: 25ms per character, starts after gimmick completes (800ms delay)
+  - Sequential animation flow for better storytelling experience
+  - Custom blinking cursor animation with smooth CSS transitions
+  - Optimized hooks with proper cleanup and edge case handling
+  - Enhanced visual appeal and user engagement
+
+### Technical
+- Added `openai` npm package dependency
+- Created `generateCreativeFortune()` function in supabase.ts for dual content generation
+- Enhanced OpenAI prompt engineering for Indonesian language and creativity
+- Updated config.ts to include OpenAI API key management
+- Modified fortune fetching logic in CameraCapture component for both gimmick and story
+- Added comprehensive error handling and fallback mechanisms
+- Updated documentation with OpenAI setup instructions
+- Created `useTypingAnimation` custom hook for reusable typing effects
+- Implemented dual typing animation system with sequential timing
+- Added custom CSS animations for blinking cursor effect
+- Enhanced response parsing for structured gimmick and story format
+
+### Fixed
+- **Camera Mirror Issue**: Fixed reversed/mirrored camera display for natural viewing experience
+  - Applied horizontal flip transform to video preview for intuitive camera view
+  - Corrected captured image orientation by flipping canvas during photo capture
+  - Maintained proper image orientation for API processing and display
+  - Enhanced user experience with natural "mirror-like" camera behavior
+
 ## [1.1.4] - 2024-12-19
 ### Added
 - **Drink Image Integration**: Added drink images from Supabase database

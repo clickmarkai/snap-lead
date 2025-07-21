@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { createLead, analyzeImageWithN8N, getDrinkByName, DrinkMenu, base64ToBlob, sendToN8NWebhook, getFortuneByMood, Fortune } from '@/lib/supabase';
+import { createLead, analyzeImageWithN8N, getDrinkByName, DrinkMenu, base64ToBlob, sendToN8NWebhook, sendToGenIngredientsWebhook, sendToSendWebhook, sendToFinalMessageWebhook, getFortuneByMood, Fortune, generateCreativeFortune } from '@/lib/supabase';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useTypingAnimation } from '@/hooks/useTypingAnimation';
 import logo from '@/assets/logo.png';
 
 interface CameraCaptureProps {
@@ -30,6 +32,11 @@ interface LeadFormData {
 }
 
 export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps) => {
+  // Simple completion tracking - DECLARE THESE FIRST TO AVOID INITIALIZATION ERRORS
+  const [genAiDone, setGenAiDone] = useState(false);
+  const [genIngredientsDone, setGenIngredientsDone] = useState(false);
+  const [webhookSent, setWebhookSent] = useState(false);
+
   const [isActive, setIsActive] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -66,6 +73,42 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
   const [leadFormData, setLeadFormData] = useState<LeadFormData>({
     email: '',
     whatsapp: ''
+  });
+
+  // Background generation state
+  const [isBackgroundGenerating, setIsBackgroundGenerating] = useState(false);
+  const [backgroundGeneratedImage, setBackgroundGeneratedImage] = useState<string | null>(null);
+  const [backgroundGenerationError, setBackgroundGenerationError] = useState(false);
+
+  // Processing state management
+  const [isActuallyProcessing, setIsActuallyProcessing] = useState(false);
+  const [processingComplete, setProcessingComplete] = useState(false);
+  const [finalResponseImage, setFinalResponseImage] = useState<string | null>(null);
+
+  // Refs to track current state for async functions
+  const backgroundGeneratingRef = useRef(false);
+  const backgroundImageRef = useRef<string | null>(null);
+  const backgroundErrorRef = useRef(false);
+  const backgroundCompletedRef = useRef(false); // Track if background generation has completed
+  const backgroundPromiseRef = useRef<Promise<string | null> | null>(null);
+  const backgroundResolveRef = useRef<((value: string | null) => void) | null>(null);
+
+  // Typing animation for fortune gimmick - creates engaging letter-by-letter reveal
+  const fortuneGimmickAnimation = useTypingAnimation({
+    text: fortuneData?.gimmick || '',
+    speed: 30, // Fast typing - 30ms per character for smooth but quick animation
+    startDelay: 500 // Small delay before starting to let user focus on the fortune section
+  });
+
+  // Calculate static delay for story based on gimmick duration
+  const gimmickDuration = (fortuneData?.gimmick?.length || 0) * 30; // 30ms per character
+  const storyStartDelay = 500 + gimmickDuration + 800; // Initial delay + gimmick duration + extra pause
+
+  // Typing animation for fortune story - starts after gimmick completes
+  const fortuneStoryAnimation = useTypingAnimation({
+    text: fortuneData?.fortune_story || '',
+    speed: 25, // Slightly faster for longer text
+    startDelay: storyStartDelay // Static delay that doesn't change
   });
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -205,8 +248,16 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    // Draw the video frame to canvas
+    // Flip the canvas horizontally to correct the mirrored video display
+    context.save();
+    context.scale(-1, 1);
+    context.translate(-canvas.width, 0);
+    
+    // Draw the video frame to canvas (now flipped back to correct orientation)
     context.drawImage(video, 0, 0);
+    
+    // Restore the canvas context
+    context.restore();
 
     // Convert to base64
     const photoData = canvas.toDataURL('image/jpeg', 0.8);
@@ -319,7 +370,19 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
         if (mood) {
           try {
             const fortune = await getFortuneByMood(mood);
-            setFortuneData(fortune);
+            if (fortune) {
+              // Generate creative fortune (both gimmick and story) using OpenAI
+              const creativeFortune = await generateCreativeFortune(mood, fortune.gimmick, fortune.fortune_story);
+              // Update the fortune with the AI-generated creative content
+              const enhancedFortune = {
+                ...fortune,
+                gimmick: creativeFortune.gimmick,
+                fortune_story: creativeFortune.fortune_story
+              };
+              setFortuneData(enhancedFortune);
+            } else {
+              setFortuneData(null);
+            }
           } catch (error) {
             setFortuneData(null);
           }
@@ -345,20 +408,86 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     }
   }, [capturedPhoto, constructCategory, preCaptureData, showAlert]);
 
-  const proceedToLeadForm = useCallback(() => {
-    setAnalysisFailed(false);
-    setShowAnalysisResults(false);
-    setShowLeadForm(true);
-  }, []);
+  // Background generation function
+  const startBackgroundGeneration = useCallback(async () => {
+    if (!capturedPhoto || backgroundGeneratingRef.current || backgroundImageRef.current || backgroundCompletedRef.current) {
+      console.log('⏭️ Skipping gen-ai generation:', {
+        hasPhoto: !!capturedPhoto,
+        isGenerating: backgroundGeneratingRef.current,
+        hasImage: !!backgroundImageRef.current,
+        isCompleted: backgroundCompletedRef.current
+      });
+      return; // Don't start if already generating, already have result, or already completed
+    }
 
-  const sendImageToUser = useCallback(async () => {
-    setIsProcessing(true);
+    console.log('🚀 Starting gen-ai background generation');
     
+    // Create a promise that will resolve when generation completes
+    const promise = new Promise<string | null>((resolve) => {
+      backgroundResolveRef.current = resolve;
+    });
+    backgroundPromiseRef.current = promise;
+
+    backgroundGeneratingRef.current = true;
+    backgroundErrorRef.current = false;
+    backgroundCompletedRef.current = false;
+    setIsBackgroundGenerating(true);
+    setBackgroundGenerationError(false);
+
     try {
-      // Construct category for the request
+      const imageBlob = base64ToBlob(capturedPhoto, 'image/jpeg');
       const category = constructCategory(preCaptureData.coffeePreference, preCaptureData.alcoholPreference);
       
-      // Create FormData to send all data including the generated image
+      // Use placeholder email/phone for background generation
+      const responseImage = await sendToN8NWebhook(
+        'placeholder@email.com', // Will be replaced when user submits
+        '+1234567890', // Will be replaced when user submits
+        imageBlob,
+        preCaptureData.name,
+        preCaptureData.gender,
+        preCaptureData.coffeePreference,
+        preCaptureData.alcoholPreference,
+        category,
+        analysisResults,
+        undefined
+      );
+      
+      if (responseImage) {
+        console.log('✅ GEN-AI DONE! Setting image and marking complete');
+        backgroundImageRef.current = responseImage;
+        setBackgroundGeneratedImage(responseImage);
+        backgroundResolveRef.current?.(responseImage);
+        setGenAiDone(true); // SIMPLE FLAG: GEN-AI IS DONE
+      } else {
+        console.log('❌ Gen-ai generation completed but no image received');
+        backgroundResolveRef.current?.(null);
+        setGenAiDone(true); // Mark as done even if failed
+      }
+    } catch (error) {
+      console.error('❌ Background generation failed:', error);
+      backgroundErrorRef.current = true;
+      setBackgroundGenerationError(true);
+      backgroundResolveRef.current?.(null);
+    } finally {
+      console.log('🔄 Background generation finished, setting isBackgroundGenerating to false');
+      backgroundGeneratingRef.current = false;
+      // Don't mark as completed here - only mark as completed after successful send
+      setIsBackgroundGenerating(false);
+    }
+  }, [capturedPhoto, preCaptureData, analysisResults, constructCategory]);
+
+  // Auto-send gen-ai image to webhook/send
+  const autoSendGenAiImage = useCallback(async (genAiImageUrl: string) => {
+    console.log('🔥 autoSendGenAiImage called with:', {
+      imageUrl: genAiImageUrl?.substring(0, 50) + '...',
+      email: leadFormData.email,
+      whatsapp: leadFormData.whatsapp
+    });
+    
+    try {
+      const category = constructCategory(preCaptureData.coffeePreference, preCaptureData.alcoholPreference);
+      
+      // Create FormData same as sendImageToUser
       const formData = new FormData();
       
       // Add core user information
@@ -383,56 +512,226 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       // Add timestamp
       formData.append('timestamp', new Date().toISOString());
       
-      // Add the generated image
-      if (n8nResponseImage) {
-        if (n8nResponseImage.startsWith('data:')) {
-          // Convert data URL to blob
-          const response = await fetch(n8nResponseImage);
-          const imageBlob = await response.blob();
-          formData.append('generatedImage', imageBlob, 'generated-image.png');
-        } else if (n8nResponseImage.startsWith('http')) {
-          // If it's a URL, download and attach the image
-          try {
-            const imageResponse = await fetch(n8nResponseImage);
-            if (imageResponse.ok) {
-              const imageBlob = await imageResponse.blob();
-              formData.append('generatedImage', imageBlob, 'generated-image.png');
-            } else {
-              // If download fails, just send the URL
-              formData.append('generatedImageUrl', n8nResponseImage);
-            }
-          } catch (downloadError) {
-            formData.append('generatedImageUrl', n8nResponseImage);
+      // Add the gen-ai image
+      if (genAiImageUrl.startsWith('data:')) {
+        // Convert data URL to blob
+        const response = await fetch(genAiImageUrl);
+        const imageBlob = await response.blob();
+        formData.append('generatedImage', imageBlob, 'gen-ai-image.png');
+      } else if (genAiImageUrl.startsWith('http')) {
+        // If it's a URL, download and attach the image
+        try {
+          const imageResponse = await fetch(genAiImageUrl);
+          if (imageResponse.ok) {
+            const imageBlob = await imageResponse.blob();
+            formData.append('generatedImage', imageBlob, 'gen-ai-image.png');
+          } else {
+            formData.append('generatedImageUrl', genAiImageUrl);
           }
+        } catch (downloadError) {
+          formData.append('generatedImageUrl', genAiImageUrl);
         }
       }
       
-      // Always add the generated image URL if present
-      if (n8nResponseImage) {
-        formData.append('imageUrl', n8nResponseImage);
+      // Always add the image URL
+      formData.append('imageUrl', genAiImageUrl);
+      
+      console.log('📤 CALLING sendToSendWebhook for gen-ai image...');
+      console.log('📊 FormData contents:');
+      for (let [key, value] of formData.entries()) {
+        if (value instanceof File) {
+          console.log(`  ${key}: File(${value.name}, ${value.size} bytes)`);
+        } else {
+          console.log(`  ${key}: ${value}`);
+        }
       }
       
-      // Send to webhook with FormData
-      const response = await fetch('https://primary-production-b68a.up.railway.app/webhook/send', {
-        method: 'POST',
-        body: formData
+      await sendToSendWebhook(formData);
+    } catch (error) {
+      console.error('❌ Auto-send gen-ai failed:', error);
+    }
+  }, [leadFormData, preCaptureData, analysisResults, constructCategory]);
+
+  // Auto-send gen-ingredients image to webhook/send
+  const autoSendGenIngredientsImage = useCallback(async (genIngredientsImageUrl: string) => {
+    console.log('🔥 autoSendGenIngredientsImage called with:', {
+      imageUrl: genIngredientsImageUrl?.substring(0, 50) + '...',
+      email: leadFormData.email,
+      whatsapp: leadFormData.whatsapp
+    });
+    
+    try {
+      const category = constructCategory(preCaptureData.coffeePreference, preCaptureData.alcoholPreference);
+      
+      // Create FormData same as sendImageToUser
+      const formData = new FormData();
+      
+      // Add core user information
+      formData.append('email', leadFormData.email);
+      formData.append('name', preCaptureData.name);
+      formData.append('whatsapp', leadFormData.whatsapp);
+      
+      // Add user preferences
+      formData.append('gender', preCaptureData.gender);
+      formData.append('coffeePreference', preCaptureData.coffeePreference);
+      formData.append('alcoholPreference', preCaptureData.alcoholPreference);
+      formData.append('category', category);
+      
+      // Add analysis results if available
+      if (analysisResults) {
+        formData.append('analysisResults', JSON.stringify(analysisResults));
+        if (analysisResults.mood) formData.append('mood', analysisResults.mood);
+        if (analysisResults.age) formData.append('age', analysisResults.age);
+        if (analysisResults.drink) formData.append('recommendedDrink', analysisResults.drink);
+      }
+      
+      // Add timestamp
+      formData.append('timestamp', new Date().toISOString());
+      
+      // Add the gen-ingredients image
+      if (genIngredientsImageUrl.startsWith('data:')) {
+        // Convert data URL to blob
+        const response = await fetch(genIngredientsImageUrl);
+        const imageBlob = await response.blob();
+        formData.append('generatedImage', imageBlob, 'gen-ingredients-image.png');
+      } else if (genIngredientsImageUrl.startsWith('http')) {
+        // If it's a URL, download and attach the image
+        try {
+          const imageResponse = await fetch(genIngredientsImageUrl);
+          if (imageResponse.ok) {
+            const imageBlob = await imageResponse.blob();
+            formData.append('generatedImage', imageBlob, 'gen-ingredients-image.png');
+          } else {
+            formData.append('generatedImageUrl', genIngredientsImageUrl);
+          }
+        } catch (downloadError) {
+          formData.append('generatedImageUrl', genIngredientsImageUrl);
+        }
+      }
+      
+      // Always add the image URL
+      formData.append('imageUrl', genIngredientsImageUrl);
+      
+      const sendSuccess = await sendToSendWebhook(formData);
+      console.log('📤 sendToSendWebhook result:', sendSuccess);
+      
+      if (sendSuccess) {
+        console.log('✅ Gen-ingredients image sent successfully to webhook/send');
+        // Wait 2 seconds before sending final_message
+        console.log('⏰ Waiting 2 seconds before sending final_message...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('📞 SENDING FINAL_MESSAGE after 2 second delay');
+        const finalMessageSuccess = await sendToFinalMessageWebhook(formData);
+        console.log('✅ Final message sent for gen-ingredients');
+      } else {
+        console.log('❌ Failed to send gen-ingredients image to webhook/send');
+      }
+    } catch (error) {
+      console.error('❌ Auto-send gen-ingredients failed:', error);
+    }
+  }, [leadFormData, preCaptureData, analysisResults, constructCategory]);
+
+  // Gen-ingredients background generation function
+  const startGenIngredientsGeneration = useCallback(async () => {
+    if (!capturedPhoto || genIngredientsGeneratingRef.current || genIngredientsImageRef.current || genIngredientsCompletedRef.current) {
+      console.log('⏭️ Skipping gen-ingredients generation:', {
+        hasPhoto: !!capturedPhoto,
+        isGenerating: genIngredientsGeneratingRef.current,
+        hasImage: !!genIngredientsImageRef.current,
+        isCompleted: genIngredientsCompletedRef.current
       });
+      return; // Don't start if already generating, already have result, or already completed
+    }
+
+    console.log('🧪 Starting gen-ingredients background generation');
+    
+    // Create a promise that will resolve when generation completes
+    const promise = new Promise<string | null>((resolve) => {
+      genIngredientsResolveRef.current = resolve;
+    });
+    genIngredientsPromiseRef.current = promise;
+
+    genIngredientsGeneratingRef.current = true;
+    genIngredientsErrorRef.current = false;
+    genIngredientsCompletedRef.current = false;
+    setIsGenIngredientsGenerating(true);
+    setGenIngredientsError(false);
+
+    try {
+      const imageBlob = base64ToBlob(capturedPhoto, 'image/jpeg');
+      const category = constructCategory(preCaptureData.coffeePreference, preCaptureData.alcoholPreference);
       
-      if (!response.ok) {
-        throw new Error(`Webhook failed: ${response.status} ${response.statusText}`);
+      // Use placeholder email/phone for background generation
+      const responseImage = await sendToGenIngredientsWebhook(
+        'placeholder@email.com', // Will be replaced when user submits
+        '+1234567890', // Will be replaced when user submits
+        imageBlob,
+        preCaptureData.name,
+        preCaptureData.gender,
+        preCaptureData.coffeePreference,
+        preCaptureData.alcoholPreference,
+        category,
+        analysisResults,
+        undefined
+      );
+      
+      if (responseImage) {
+        console.log('✅ GEN-INGREDIENTS DONE! Setting image and marking complete');
+        genIngredientsImageRef.current = responseImage;
+        setGenIngredientsImage(responseImage);
+        genIngredientsResolveRef.current?.(responseImage);
+        setGenIngredientsDone(true); // SIMPLE FLAG: GEN-INGREDIENTS IS DONE
+      } else {
+        console.log('❌ Gen-ingredients generation completed but no image received');
+        genIngredientsResolveRef.current?.(null);
+        setGenIngredientsDone(true); // Mark as done even if failed
       }
+    } catch (error) {
+      console.error('❌ Gen-ingredients generation failed:', error);
+      genIngredientsErrorRef.current = true;
+      setGenIngredientsError(true);
+      genIngredientsResolveRef.current?.(null);
+    } finally {
+      console.log('🔄 Gen-ingredients generation finished, setting isGenIngredientsGenerating to false');
+      genIngredientsGeneratingRef.current = false;
+      // Don't mark as completed here - only mark as completed after successful send
+      setIsGenIngredientsGenerating(false);
+    }
+  }, [capturedPhoto, preCaptureData, analysisResults, constructCategory]);
+
+  const proceedToLeadForm = useCallback(() => {
+    console.log('🚪 proceedToLeadForm called - showing lead form and starting background generations');
+    setAnalysisFailed(false);
+    setShowAnalysisResults(false);
+    setShowLeadForm(true);
+    
+    // Start both background generations when showing lead form
+    console.log('🚀 Calling startBackgroundGeneration...');
+    startBackgroundGeneration();
+    console.log('🧪 Calling startGenIngredientsGeneration...');
+    startGenIngredientsGeneration();
+    console.log('✅ Both background generations initiated');
+  }, [startBackgroundGeneration, startGenIngredientsGeneration]);
+
+  const sendImageToUser = useCallback(async () => {
+    setIsProcessing(true);
+    
+    try {
+      // Note: Images are already auto-sent to webhook/send when background generation completes
+      // This function now only handles transitioning to thank you screen
+      console.log('📝 Finishing process - images already sent automatically');
       
-      // Proceed to thank you screen
+      // Proceed directly to thank you screen
       setShowResponseImage(false);
       setShowThankYou(true);
       onLeadSaved?.();
       
     } catch (error) {
-      showAlert("destructive", "Send Failed", "Failed to send your information. Please try again.");
+      showAlert("destructive", "Process Failed", "Failed to complete the process. Please try again.");
     } finally {
       setIsProcessing(false);
     }
-  }, [leadFormData, preCaptureData, analysisResults, n8nResponseImage, constructCategory, showAlert, onLeadSaved]);
+  }, [showAlert, onLeadSaved]);
 
   const resetForNextCustomer = useCallback(() => {
     // Reset everything for next customer
@@ -458,7 +757,114 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       email: '',
       whatsapp: ''
     });
+    
+    // Reset background generation state
+    setIsBackgroundGenerating(false);
+    setBackgroundGeneratedImage(null);
+    setBackgroundGenerationError(false);
+    
+    // Reset processing state
+    setIsActuallyProcessing(false);
+    setProcessingComplete(false);
+    setFinalResponseImage(null);
+    
+    // Reset style selection state
+    setShowStyleSelector(false);
+    setSelectedStyle('');
+    setIsRegenerating(false);
+    setHasRegenerated(false);
+    
+    // Reset gen-ingredients state
+    setIsGenIngredientsGenerating(false);
+    setGenIngredientsImage(null);
+    setGenIngredientsError(false);
+    
+    // Reset completion flags
+    setGenAiDone(false);
+    setGenIngredientsDone(false);
+    setWebhookSent(false);
+    
+    // Reset refs
+    backgroundGeneratingRef.current = false;
+    backgroundImageRef.current = null;
+    backgroundErrorRef.current = false;
+    backgroundCompletedRef.current = false; // Reset the sent flag
+    backgroundPromiseRef.current = null;
+    backgroundResolveRef.current = null;
+    
+    // Reset gen-ingredients refs
+    genIngredientsGeneratingRef.current = false;
+    genIngredientsImageRef.current = null;
+    genIngredientsErrorRef.current = false;
+    genIngredientsCompletedRef.current = false; // Reset the sent flag
+    genIngredientsPromiseRef.current = null;
+    genIngredientsResolveRef.current = null;
   }, []);
+
+  // Listen for processing completion
+  useEffect(() => {
+    console.log('👀 Processing state changed:', {
+      processingComplete,
+      isActuallyProcessing,
+      hasFinalImage: !!finalResponseImage,
+      showThankYou,
+      showResponseImage,
+      showProcessingScreen
+    });
+
+    if (processingComplete && !showThankYou && !showResponseImage) {
+      console.log('🎯 Processing completed, determining next action...');
+      
+      // Hide processing screen
+      setShowProcessingScreen(false);
+      
+      if (finalResponseImage) {
+        console.log('🖼️ Showing final response image');
+        setN8nResponseImage(finalResponseImage);
+        setShowResponseImage(true);
+      }
+      
+      // Reset processing state
+      setIsActuallyProcessing(false);
+      setProcessingComplete(false);
+      setFinalResponseImage(null);
+    }
+  }, [processingComplete, isActuallyProcessing, finalResponseImage, showThankYou, showResponseImage, showProcessingScreen, onLeadSaved]);
+
+  // SIMPLE LOGIC: WHEN BOTH ARE DONE, SEND WEBHOOK IMMEDIATELY
+  useEffect(() => {
+    const sendWebhookWhenBothDone = async () => {
+      console.log('🔍 CHECKING BOTH DONE:', {
+        genAiDone,
+        genIngredientsDone,
+        webhookSent,
+        hasEmail: !!leadFormData.email,
+        hasWhatsApp: !!leadFormData.whatsapp
+      });
+
+      // BOTH DONE + HAVE EMAIL/WHATSAPP + NOT SENT YET = SEND NOW!
+      if (genAiDone && genIngredientsDone && !webhookSent && leadFormData.email && leadFormData.whatsapp) {
+        console.log('🚀🚀🚀 BOTH DONE! SENDING WEBHOOK/SEND NOW!');
+        setWebhookSent(true); // Prevent multiple sends
+        
+        // Send gen-ai image first
+        if (backgroundImageRef.current) {
+          console.log('📤 SENDING GEN-AI IMAGE TO WEBHOOK/SEND');
+          await autoSendGenAiImage(backgroundImageRef.current);
+        }
+        
+        // Send gen-ingredients image second
+        if (genIngredientsImageRef.current) {
+          console.log('📤 SENDING GEN-INGREDIENTS IMAGE TO WEBHOOK/SEND');
+          await autoSendGenIngredientsImage(genIngredientsImageRef.current);
+        }
+        
+        console.log('✅ ALL WEBHOOKS SENT!');
+      }
+    };
+
+    sendWebhookWhenBothDone();
+  }, [genAiDone, genIngredientsDone, webhookSent, leadFormData.email, leadFormData.whatsapp, autoSendGenAiImage, autoSendGenIngredientsImage]);
 
   // Auto-redirect after showing thank you screen
   useEffect(() => {
@@ -475,10 +881,13 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
   const saveLeadToDatabase = useCallback(async () => {
     if (!capturedPhoto) return;
 
-    // Show processing screen immediately
+    // Show processing screen immediately and start actual processing
     setShowLeadForm(false);
     setShowProcessingScreen(true);
     setIsProcessing(true);
+    setIsActuallyProcessing(true);
+    setProcessingComplete(false);
+    setFinalResponseImage(null);
     
     try {
       // Convert base64 to Blob for N8N webhook
@@ -500,38 +909,61 @@ Coffee Preference: ${preCaptureData.coffeePreference}
 Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
       });
       
-      // Send all customer data to N8N webhook and wait for response
-      try {
-        const responseImage = await sendToN8NWebhook(
-          leadFormData.email,
-          leadFormData.whatsapp,
-          imageBlob,
-          preCaptureData.name,
-          preCaptureData.gender,
-          preCaptureData.coffeePreference,
-          preCaptureData.alcoholPreference,
-          category,
-          analysisResults,
-          undefined // Removed drinkDetails?.description
-        );
-        
-        // Hide processing screen
-        setShowProcessingScreen(false);
-        
-        // If we received an image response, show it
-        if (responseImage) {
-          setN8nResponseImage(responseImage);
-          setShowResponseImage(true);
-          // Note: No auto-advance, waiting for user confirmation
-        } else {
-          setShowThankYou(true);
-          onLeadSaved?.();
-        }
-      } catch (webhookError) {
-        // Hide processing screen and proceed to thank you screen even if webhook fails
-        setShowProcessingScreen(false);
-        setShowThankYou(true);
+      // Check if we can use background generated image or wait for it
+      let responseImage = backgroundImageRef.current;
+      console.log('📊 Background generation state at submit:', {
+        hasBackgroundImage: !!backgroundImageRef.current,
+        isGenerating: backgroundGeneratingRef.current,
+        hasCompleted: backgroundCompletedRef.current,
+        hasError: backgroundErrorRef.current,
+        hasPromise: !!backgroundPromiseRef.current
+      });
+
+      // CRITICAL: If background generation is still running, we MUST wait for it
+      if (backgroundGeneratingRef.current || (!backgroundCompletedRef.current && backgroundPromiseRef.current)) {
+        console.log('🚨 CRITICAL: Background generation is still active, forcing wait...');
       }
+      
+      // If there's a background promise (regardless of completion status), wait for it
+      if (backgroundPromiseRef.current) {
+        console.log('⏳ Background generation still in progress, waiting for it to complete...');
+        console.log('📊 Current refs state:', {
+          backgroundCompleted: backgroundCompletedRef.current,
+          hasBackgroundImage: !!backgroundImageRef.current,
+          isGenerating: backgroundGeneratingRef.current,
+          hasPromise: !!backgroundPromiseRef.current
+        });
+        
+        try {
+          console.log('⏳ Waiting for background promise to resolve (no timeout - allowing full generation time)...');
+          const result = await backgroundPromiseRef.current;
+          responseImage = result;
+          console.log('✅ Background generation promise resolved with result:', !!result);
+          // Clear the promise since it's resolved
+          backgroundPromiseRef.current = null;
+        } catch (error) {
+          console.log('❌ Background generation failed:', error);
+          backgroundCompletedRef.current = true;
+          backgroundPromiseRef.current = null;
+        }
+      } else {
+        console.log('📋 Background generation state:', {
+          completed: backgroundCompletedRef.current,
+          hasImage: !!backgroundImageRef.current,
+          hasPromise: !!backgroundPromiseRef.current
+        });
+      }
+      
+      // Set final response and mark processing as complete
+      console.log('🎯 ALL PROCESSING COMPLETE - Setting final response and marking as done');
+      console.log('📊 Final result:', {
+        hasImage: !!responseImage,
+        imageSource: responseImage === backgroundImageRef.current ? 'background' : 'fresh-webhook'
+      });
+      
+      setFinalResponseImage(responseImage);
+      setProcessingComplete(true);
+      // Note: useEffect will handle hiding processing screen and showing next screen
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -540,6 +972,11 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
       // Hide processing screen and return to lead form on error
       setShowProcessingScreen(false);
       setShowLeadForm(true);
+      
+      // Reset processing state on error
+      setIsActuallyProcessing(false);
+      setProcessingComplete(false);
+      setFinalResponseImage(null);
     } finally {
       setIsProcessing(false);
     }
@@ -548,10 +985,122 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
   // Add a new state for re-generating loading
   const [isRegenerating, setIsRegenerating] = useState(false);
 
-  // Add a function to re-generate the personalized image
+  // Style selection state
+  const [showStyleSelector, setShowStyleSelector] = useState(false);
+  const [selectedStyle, setSelectedStyle] = useState<string>('');
+
+  // Regeneration control
+  const [hasRegenerated, setHasRegenerated] = useState(false);
+
+  // Gen-ingredients background generation state
+  const [isGenIngredientsGenerating, setIsGenIngredientsGenerating] = useState(false);
+  const [genIngredientsImage, setGenIngredientsImage] = useState<string | null>(null);
+  const [genIngredientsError, setGenIngredientsError] = useState(false);
+
+  // Refs for gen-ingredients
+  const genIngredientsGeneratingRef = useRef(false);
+  const genIngredientsImageRef = useRef<string | null>(null);
+  const genIngredientsErrorRef = useRef(false);
+  const genIngredientsCompletedRef = useRef(false);
+  const genIngredientsPromiseRef = useRef<Promise<string | null> | null>(null);
+  const genIngredientsResolveRef = useRef<((value: string | null) => void) | null>(null);
+
+  // Style options for regeneration
+  const styleOptions = [
+    { id: 'dragonball', name: 'Dragon Ball', emoji: '🐉' },
+    { id: 'sailormoon', name: 'Sailor Moon', emoji: '🌙' },
+    { id: 'disney-princess', name: 'Disney Princess', emoji: '👸' },
+    { id: 'pixar', name: 'Pixar Style', emoji: '🎬' },
+    { id: 'ghibli', name: 'Studio Ghibli', emoji: '🌿' },
+    { id: 'naruto', name: 'Naruto', emoji: '🍥' },
+    { id: 'one-piece', name: 'One Piece', emoji: '⚓' },
+    { id: 'pokemon', name: 'Pokemon', emoji: '⚡' },
+    { id: 'attack-on-titan', name: 'Attack on Titan', emoji: '⚔️' },
+    { id: 'my-hero-academia', name: 'My Hero Academia', emoji: '🦸' },
+    { id: 'demon-slayer', name: 'Demon Slayer', emoji: '🗡️' },
+    { id: 'jujutsu-kaisen', name: 'Jujutsu Kaisen', emoji: '👻' },
+    { id: 'marvel', name: 'Marvel Comics', emoji: '🦸‍♂️' },
+    { id: 'dc-comics', name: 'DC Comics', emoji: '🦇' },
+    { id: 'cartoon-network', name: 'Cartoon Network', emoji: '📺' },
+    { id: 'anime-chibi', name: 'Anime Chibi', emoji: '🥰' },
+    { id: 'cyberpunk', name: 'Cyberpunk', emoji: '🤖' },
+    { id: 'fantasy', name: 'Fantasy Art', emoji: '🧙‍♂️' },
+    { id: 'watercolor', name: 'Watercolor', emoji: '🎨' },
+    { id: 'vintage-poster', name: 'Vintage Poster', emoji: '📜' }
+  ];
+
+  // Handle style selection
+  const handleStyleSelection = useCallback(() => {
+    setShowStyleSelector(true);
+  }, []);
+
+  const handleStyleConfirm = useCallback(async () => {
+    if (!selectedStyle || !capturedPhoto || hasRegenerated) return;
+    
+    console.log('🎨 REGENERATING WITH STYLE USING GEN-AI API');
+    
+    // Close style selector and start regeneration with gen-ai
+    setShowStyleSelector(false);
+    setIsRegenerating(true);
+    setIsActuallyProcessing(true); // Enable processing animation
+    setShowResponseImage(false); // Hide current image
+    setShowProcessingScreen(true);
+    setHasRegenerated(true); // Mark as regenerated to prevent future regenerations
+    
+    const selectedStyleName = styleOptions.find(style => style.id === selectedStyle)?.name || selectedStyle;
+    console.log('🎨 Calling GEN-AI API with style:', selectedStyleName);
+    
+    try {
+      const imageBlob = base64ToBlob(capturedPhoto, 'image/jpeg');
+      const category = constructCategory(preCaptureData.coffeePreference, preCaptureData.alcoholPreference);
+      
+      // Call GEN-AI webhook with the selected style (NOT gen-ingredients)
+      const responseImage = await sendToN8NWebhook(
+        leadFormData.email,
+        leadFormData.whatsapp,
+        imageBlob,
+        preCaptureData.name,
+        preCaptureData.gender,
+        preCaptureData.coffeePreference,
+        preCaptureData.alcoholPreference,
+        category,
+        analysisResults,
+        selectedStyleName // Pass the selected style as drinkDescription parameter
+      );
+      
+      setShowProcessingScreen(false);
+      setIsActuallyProcessing(false); // Stop processing animation
+      console.log('✅ GEN-AI style regeneration completed');
+      
+      if (responseImage) {
+        // Set the new gen-ai regenerated image as the response
+        setN8nResponseImage(responseImage);
+        setShowResponseImage(true);
+        
+        // Send the regenerated image to webhook/send
+        console.log('📤 SENDING REGENERATED GEN-AI IMAGE TO WEBHOOK/SEND');
+        await autoSendGenAiImage(responseImage);
+      } else {
+        setShowThankYou(true);
+        onLeadSaved?.();
+      }
+    } catch (error) {
+      setShowProcessingScreen(false);
+      setIsActuallyProcessing(false); // Stop processing animation on error
+      setShowResponseImage(true); // Show previous image on error
+      console.log('❌ GEN-AI style regeneration failed');
+      showAlert("destructive", "Style Regeneration Failed", "Failed to regenerate with the selected style. Please try again.");
+    } finally {
+      setIsRegenerating(false);
+      setSelectedStyle(''); // Reset selection
+    }
+  }, [selectedStyle, capturedPhoto, hasRegenerated, styleOptions, showAlert, onLeadSaved, leadFormData, preCaptureData, analysisResults, constructCategory, autoSendGenAiImage]);
+
+  // Add a function to re-generate the personalized image (keep original for backward compatibility)
   const reGenerateImage = useCallback(async () => {
     if (!capturedPhoto) return;
     setIsRegenerating(true);
+    setIsActuallyProcessing(true); // Enable processing animation
     setShowProcessingScreen(true);
     try {
       const imageBlob = base64ToBlob(capturedPhoto, 'image/jpeg');
@@ -570,6 +1119,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
         undefined // No drink description
       );
       setShowProcessingScreen(false);
+      setIsActuallyProcessing(false); // Stop processing animation
       if (responseImage) {
         setN8nResponseImage(responseImage);
         setShowResponseImage(true);
@@ -579,6 +1129,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
       }
     } catch (error) {
       setShowProcessingScreen(false);
+      setIsActuallyProcessing(false); // Stop processing animation on error
       showAlert("destructive", "Re-generate Failed", "Failed to re-generate your image. Please try again.");
     } finally {
       setIsRegenerating(false);
@@ -624,7 +1175,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
         </div>
       )}
       
-      <Card>
+      <Card className={showProcessingScreen ? "bg-transparent border-transparent" : ""}>
         <CardContent className="p-8 lg:p-12">
           <div className="space-y-4">
 
@@ -873,6 +1424,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                       autoPlay
                       playsInline
                       className="w-full h-full object-cover"
+                      style={{ transform: 'scaleX(-1)' }} // Mirror video for natural camera view
                     />
                   </div>
                   
@@ -1054,7 +1606,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
 
             {/* Analysis Results Screen */}
             {showAnalysisResults && capturedPhoto && !showThankYou && !showProcessingScreen && !showResponseImage && (
-              <div className="w-full max-w-lg mx-auto space-y-4 px-2 sm:px-4">
+              <div className="w-full mx-auto space-y-4 px-2 sm:px-4">
                 {/* Header with photo and text in a card */}
                 <div className="bg-card rounded-xl border border-primary/10 shadow-sm p-4 flex flex-col sm:flex-row items-center gap-4 mb-2">
                   <div className="flex-shrink-0">
@@ -1099,10 +1651,20 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                         <div className="text-center">
                           <h3 className="text-lg font-bold text-primary mb-3">🔮 Your Fortune</h3>
                           <div className="space-y-3">
-                            <p className="text-sm font-bold text-foreground">{fortuneData.gimmick}</p>
+                            <p className="text-lg font-bold text-foreground min-h-[3rem] flex items-center justify-center">
+                              <span className="text-center">
+                                {fortuneGimmickAnimation.displayText}
+                                {fortuneGimmickAnimation.hasStarted && !fortuneGimmickAnimation.isComplete && (
+                                  <span className="typing-cursor text-primary">|</span>
+                                )}
+                              </span>
+                            </p>
                             <div className="border-t border-primary/10 pt-3">
-                              <p className="text-sm text-black leading-relaxed text-left">
-                                {fortuneData.fortune_story}
+                              <p className="text-base text-black leading-relaxed text-left min-h-[2.5rem]">
+                                {fortuneStoryAnimation.displayText}
+                                {fortuneStoryAnimation.hasStarted && !fortuneStoryAnimation.isComplete && (
+                                  <span className="typing-cursor text-primary">|</span>
+                                )}
                               </p>
                             </div>
                           </div>
@@ -1162,6 +1724,34 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                 <div className="text-center space-y-4 mb-8">
                   <h3 className="text-2xl lg:text-3xl font-bold text-foreground">Almost Done!</h3>
                   <p className="text-base lg:text-lg text-muted-foreground">Enter your contact details to save your personalized recommendation</p>
+                  
+                  {/* Background generation indicator */}
+                  {isBackgroundGenerating && (
+                    <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-xl p-3 mt-4">
+                      <div className="flex items-center justify-center gap-3">
+                        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-sm text-primary font-medium">Preparing your personalized image...</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {backgroundGeneratedImage && !isBackgroundGenerating && (
+                    <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl p-3 mt-4">
+                      <div className="flex items-center justify-center gap-3">
+                        <div className="w-5 h-5 text-green-600">✓</div>
+                        <span className="text-sm text-green-700 font-medium">Your personalized image is ready!</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {genIngredientsImage && !isGenIngredientsGenerating && (
+                    <div className="bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-3 mt-4">
+                      <div className="flex items-center justify-center gap-3">
+                        <div className="w-5 h-5 text-purple-600">🎨</div>
+                        <span className="text-sm text-purple-700 font-medium">Style regeneration options ready!</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Stacked input fields */}
@@ -1173,7 +1763,10 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                       type="email"
                       placeholder="your@example.com"
                       value={leadFormData.email}
-                      onChange={(e) => setLeadFormData(prev => ({ ...prev, email: e.target.value }))}
+                      onChange={(e) => {
+                        console.log('📧 Email changed to:', e.target.value);
+                        setLeadFormData(prev => ({ ...prev, email: e.target.value }));
+                      }}
                       className="h-14 lg:h-16 text-base lg:text-lg rounded-xl border-2 focus:border-primary w-full bg-white"
                       autoComplete="off"
                     />
@@ -1185,7 +1778,12 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                       type="tel"
                       placeholder="+62 812-3456-7890"
                       value={leadFormData.whatsapp}
-                      onChange={(e) => setLeadFormData(prev => ({ ...prev, whatsapp: e.target.value }))}
+                      onChange={(e) => {
+                        // Only allow numbers and plus symbol
+                        const value = e.target.value.replace(/[^0-9+]/g, '');
+                        console.log('📱 WhatsApp changed to:', value);
+                        setLeadFormData(prev => ({ ...prev, whatsapp: value }));
+                      }}
                       className="h-14 lg:h-16 text-base lg:text-lg rounded-xl border-2 focus:border-primary w-full bg-white"
                       autoComplete="off"
                     />
@@ -1226,8 +1824,8 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
               </div>
             )}
 
-            {/* Processing Screen */}
-            {showProcessingScreen && (
+            {/* Processing Screen - Only show when actually processing */}
+            {showProcessingScreen && isActuallyProcessing && (
               <div className="fixed inset-0 z-50">
                 <div className="relative w-full h-full flex flex-col">
                   {/* Blurred photo background if available */}
@@ -1248,7 +1846,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                   )}
                   {/* Overlay loading card */}
                   <div className="relative flex-1 flex items-center justify-center z-10">
-                    <div className="text-center bg-transparent backdrop-blur-sm rounded-3xl p-12 lg:p-16 mx-6 lg:mx-8 border border-white/30 max-w-2xl">
+                    <div className="text-center bg-black/20 rounded-3xl p-12 lg:p-16 mx-6 lg:mx-8 border border-white/20 max-w-2xl">
                       <div className="mx-auto w-24 h-24 lg:w-32 lg:h-32 mb-8 lg:mb-10 relative animate-scale-in">
                         <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-primary/30"></div>
                         <div className="absolute inset-0 rounded-full border-4 lg:border-6 border-transparent border-t-primary spinner-glow"></div>
@@ -1275,41 +1873,62 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                   <p className="text-base lg:text-lg text-muted-foreground">Here's your custom creation!</p>
                 </div>
                 
-                <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-xl p-4">
-                  <div className="bg-card rounded-lg p-4 border border-primary/10 shadow-sm">
-                    <img
-                      src={n8nResponseImage}
-                      alt="Your personalized image"
-                      className="w-full h-auto rounded-lg shadow-lg"
-                      onLoad={() => {
-                      }}
-                      onError={(e) => {
-                        // If image fails to load, skip to thank you screen
-                        showAlert("default", "Image Ready", "Your personalized image is being prepared and will be sent to you shortly!");
-                        setShowResponseImage(false);
-                        setShowThankYou(true);
-                        onLeadSaved?.();
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Drink Image */}
-                {analysisResults?.drink && drinkDetails?.image_url && (
-                  <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-xl p-4">
-                    <div className="bg-card rounded-lg p-4 border border-primary/10 shadow-sm">
+                {/* Images Side by Side */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Generated Image */}
+                  <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-xl p-2">
+                    <div className="bg-card rounded-lg border border-primary/10 shadow-sm">
                       <img
-                        src={drinkDetails.image_url}
-                        alt={analysisResults.drink}
+                        src={n8nResponseImage}
+                        alt="Your personalized image"
                         className="w-full h-auto rounded-lg shadow-lg"
+                        onLoad={() => {
+                        }}
                         onError={(e) => {
-                          // Hide image if it fails to load
-                          e.currentTarget.style.display = 'none';
+                          // If image fails to load, skip to thank you screen
+                          showAlert("default", "Image Ready", "Your personalized image is being prepared and will be sent to you shortly!");
+                          setShowResponseImage(false);
+                          setShowThankYou(true);
+                          onLeadSaved?.();
                         }}
                       />
                     </div>
                   </div>
-                )}
+
+                  {/* Drink Image */}
+                  {analysisResults?.drink && drinkDetails?.image_url && (
+                    <div className="bg-gradient-to-r from-primary/10 to-primary-glow/10 border border-primary/20 rounded-xl p-2">
+                      <div className="bg-card rounded-lg border border-primary/10 shadow-sm">
+                        <img
+                          src={drinkDetails.image_url}
+                          alt={analysisResults.drink}
+                          className="w-full h-auto rounded-lg shadow-lg"
+                          onError={(e) => {
+                            // Hide image if it fails to load
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Indonesian Content Below Images */}
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-6 text-center">
+                  <p className="text-lg text-blue-900 font-medium mb-4">
+                    Untuk resep minumannya juga kita kirimkan ke Kakak!
+                    Bisa dicek di WhatsApp kakak ya!
+                  </p>
+                  
+                  <p className="text-base text-blue-800 mb-4">
+                    Kurang cocok hasilnya, Kak? Tenang aja, kita bisa regenerate gambarnya sesuai tema 
+                    yang Kakak mau misalnya <strong>Dragon Ball</strong>, <strong>Sailor Moon</strong>, atau lainnya.
+                  </p>
+                  
+                  <p className="text-sm text-blue-700 font-medium">
+                    Tinggal regenerate image di bawah ya!
+                  </p>
+                </div>
 
                 {/* Send to Me and Re-generate Buttons */}
                 <div className="text-center pt-3 flex flex-col gap-3 w-full max-w-md mx-auto">
@@ -1324,27 +1943,84 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
                         Sending...
                       </>
                     ) : (
-                      <>Send to Me</>
+                      <>Finish</>
                     )}
                   </Button>
                   <Button
-                    onClick={reGenerateImage}
-                    disabled={isRegenerating || isProcessing}
+                    onClick={handleStyleSelection}
+                    disabled={isRegenerating || isProcessing || hasRegenerated}
                     variant="outline"
-                    className="w-full bg-white text-primary border-primary border-2 text-base py-3 px-6 rounded-xl font-semibold hover:bg-primary/10 transition-all duration-200 transform hover:scale-105"
+                    className={`w-full text-base py-3 px-6 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 ${
+                      hasRegenerated 
+                        ? 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed' 
+                        : 'bg-white text-primary border-primary border-2 hover:bg-primary/10'
+                    }`}
                   >
-                    {isRegenerating ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
-                        Re-generating...
-                      </>
-                    ) : (
-                      <>
-                        Give Me a Different Look
-                      </>
-                    )}
+                    {hasRegenerated ? 'Already Regenerated' : 'Give Me a Different Look'}
                   </Button>
                 </div>
+
+                {/* Style Selector Modal */}
+                <Dialog open={showStyleSelector} onOpenChange={setShowStyleSelector}>
+                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl font-bold text-center mb-4">
+                        🎨 Choose Your Style
+                      </DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4">
+                      <p className="text-center text-muted-foreground mb-6">
+                        Pilih gaya yang kamu inginkan untuk gambar personalmu!
+                      </p>
+                      
+                      {/* Style Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {styleOptions.map((style) => (
+                          <button
+                            key={style.id}
+                            onClick={() => setSelectedStyle(style.id)}
+                            className={`p-4 rounded-xl border-2 transition-all duration-200 text-left hover:scale-105 ${
+                              selectedStyle === style.id
+                                ? 'border-primary bg-primary/10 shadow-lg'
+                                : 'border-gray-200 hover:border-primary/50 hover:bg-primary/5'
+                            }`}
+                          >
+                            <div className="text-2xl mb-2">{style.emoji}</div>
+                            <div className="font-medium text-sm">{style.name}</div>
+                          </button>
+                        ))}
+                      </div>
+                      
+                      {/* Action Buttons */}
+                      <div className="flex gap-3 pt-6">
+                        <Button
+                          onClick={() => setShowStyleSelector(false)}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleStyleConfirm}
+                          disabled={!selectedStyle || isRegenerating}
+                          className="flex-1 bg-gradient-to-r from-primary to-primary-glow hover:from-primary-glow hover:to-primary"
+                        >
+                          {isRegenerating ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Regenerating...
+                            </>
+                          ) : (
+                            <>
+                              🎨 Regenerate
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             )}
 

@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 import { config, features } from './config'
+import OpenAI from 'openai'
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: config.openai.apiKey,
+  dangerouslyAllowBrowser: true // Note: In production, this should be handled server-side
+})
 
 // Create Supabase client
 export const supabase = createClient(config.supabase.url, config.supabase.anonKey)
@@ -605,6 +612,243 @@ export const getFortuneByMood = async (mood: string): Promise<Fortune | null> =>
     return data[randomIndex]
   } catch (error) {
     return null
+  }
+}
+
+// Generate creative fortune with both gimmick and story using OpenAI
+export const generateCreativeFortune = async (mood: string, originalGimmick: string, originalStory: string): Promise<{ gimmick: string; fortune_story: string }> => {
+  try {
+    if (!features.aiFortuneGeneration) {
+      return { gimmick: originalGimmick, fortune_story: originalStory }; // Fallback to original if OpenAI is not available
+    }
+
+    const prompt = `Kamu adalah penulis ramalan yang kreatif dan bijak. Berdasarkan mood seseorang "${mood}" dan menggunakan contoh ramalan berikut sebagai inspirasi (JANGAN gunakan kata-kata yang sama), buatlah ramalan baru yang lebih kreatif dan personal dalam bahasa Indonesia.
+
+Contoh mood dan ramalan:
+- HAPPY: gimmick="Bonus kerja sudah cair", story="Saldo nambah, hati ikut lega. Semoga bulan depan bonusnya makin besar dan bermanfaat"
+- SAD: gimmick="Bisnis jalan, tapi nggak ada yang tahu kamu capek banget di balik layar", story="Kelihatannya baik-baik aja, padahal kamu lagi megang semuanya sendiri. Semoga kamu segera nemu orang yang bisa bantu dan ngerti rasanya"
+- ANGRY: gimmick="Sudah kasih yang terbaik, tapi tetap dibandingin sama orang lain", story="Kamu udah kerja keras, tapi yang dilihat cuma hasil. Semoga kamu tetap kuat, dan pelan-pelan orang mulai lihat prosesnya juga"
+- SCARE: gimmick="Takut kehilangan orang kepercayaan di tim", story="Deg-degan lihat tanda-tanda orang mau pergi. Semoga semuanya bisa dibicarakan baik-baik"
+
+Mood saat ini: ${mood}
+Contoh gimmick inspirasi: "${originalGimmick}"
+Contoh story inspirasi: "${originalStory}"
+
+Aturan:
+- Gunakan bahasa Indonesia yang natural dan kasual
+- Gimmick: 1 kalimat pendek yang relatable dengan mood
+- Fortune story: 2-3 kalimat yang menjelaskan gimmick dengan empati dan harapan positif
+- WAJIB berbeda dari contoh yang diberikan (jangan copy paste atau parafrase sederhana)
+- Sesuaikan tone dengan mood: ${mood}
+- Buat yang benar-benar baru dan kreatif
+- Gunakan perspektif yang personal dan empatis
+
+Format response:
+GIMMICK: [gimmick baru dalam 1 kalimat]
+STORY: [fortune story baru dalam 2-3 kalimat]`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "Kamu adalah penulis ramalan Indonesia yang sangat kreatif dan empatis. Kamu selalu membuat ramalan yang personal, relatable, dan memberikan harapan positif dengan bahasa yang natural dan hangat."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      max_tokens: 300,
+      temperature: 0.8, // Higher temperature for maximum creativity
+    });
+
+    const response = completion.choices[0]?.message?.content?.trim();
+    
+    if (response) {
+      // Parse the response to extract gimmick and story
+      const gimmickMatch = response.match(/GIMMICK:\s*(.+)/i);
+      const storyMatch = response.match(/STORY:\s*(.+)/i);
+      
+      const newGimmick = gimmickMatch?.[1]?.trim() || originalGimmick;
+      const newStory = storyMatch?.[1]?.trim() || originalStory;
+      
+      return {
+        gimmick: newGimmick,
+        fortune_story: newStory
+      };
+    }
+    
+    return { gimmick: originalGimmick, fortune_story: originalStory };
+  } catch (error) {
+    console.error('Error generating creative fortune:', error);
+    return { gimmick: originalGimmick, fortune_story: originalStory }; // Fallback to original on error
+  }
+};
+
+// Gen-ingredients webhook - same as gen-ai but for ingredients generation
+export const sendToGenIngredientsWebhook = async (
+  email: string, 
+  phone: string, 
+  imageBlob: Blob,
+  name: string,
+  gender: string,
+  coffeePreference: string,
+  alcoholPreference: string,
+  category: string,
+  analysisResults?: any,
+  drinkDescription?: string
+): Promise<string | null> => {
+  // Check if N8N integration is enabled
+  if (!features.aiAnalysis) {
+    return null
+  }
+
+  const GEN_INGREDIENTS_URL = 'https://primary-production-b68a.up.railway.app/webhook/gen-ingredients'
+
+  try {
+    // Create FormData to send binary data and all customer information (same as gen-ai)
+    const formData = new FormData()
+    formData.append('email', email)
+    formData.append('phone', phone)
+    formData.append('photo', imageBlob, 'lead-photo.jpg')
+    formData.append('name', name)
+    formData.append('gender', gender)
+    formData.append('coffeePreference', coffeePreference)
+    formData.append('alcoholPreference', alcoholPreference)
+    formData.append('category', category)
+    
+    // Add drink description if available
+    if (drinkDescription) {
+      formData.append('drinkDescription', drinkDescription)
+    }
+    
+    // Add analysis results if available
+    if (analysisResults) {
+      formData.append('analysisResults', JSON.stringify(analysisResults))
+      
+      // Add individual analysis fields for easy access
+      if (analysisResults.mood) formData.append('mood', analysisResults.mood)
+      if (analysisResults.age) formData.append('age', analysisResults.age)
+      if (analysisResults.drink) formData.append('recommendedDrink', analysisResults.drink)
+    }
+    
+    const response = await fetch(GEN_INGREDIENTS_URL, {
+      method: 'POST',
+      body: formData
+      // No timeout - let generation complete regardless of how long it takes
+    })
+
+    if (!response.ok) {
+      throw new Error(`Gen-ingredients webhook failed: ${response.status} ${response.statusText}`)
+    }
+
+    // Parse response same as gen-ai
+    const contentType = response.headers.get('content-type')
+    
+    if (contentType && contentType.startsWith('image/')) {
+      // Response is an image, convert to base64 data URL
+      const imageBlob = await response.blob()
+      const reader = new FileReader()
+      return new Promise((resolve) => {
+        reader.onloadend = () => {
+          resolve(reader.result as string)
+        }
+        reader.readAsDataURL(imageBlob)
+      })
+    } else {
+      // Try to get JSON response or text response
+      const responseText = await response.text()
+      
+      if (!responseText || responseText.trim() === '') {
+        return null
+      }
+      
+      try {
+        const jsonResponse = JSON.parse(responseText)
+        
+        if (Array.isArray(jsonResponse)) {
+          if (jsonResponse.length > 0 && jsonResponse[0].data && Array.isArray(jsonResponse[0].data)) {
+            const firstDataItem = jsonResponse[0].data[0]
+            if (firstDataItem && firstDataItem.b64_json) {
+              const base64Data = firstDataItem.b64_json
+              const dataUrl = `data:image/png;base64,${base64Data}`
+              return dataUrl
+            }
+          }
+        } else {
+          if (jsonResponse.Key) {
+            const supabaseUrl = config.supabase.url
+            const publicUrl = `${supabaseUrl}/storage/v1/object/public/${jsonResponse.Key}`
+            return publicUrl
+          }
+        }
+        
+        if (jsonResponse.image || jsonResponse.imageUrl || jsonResponse.base64) {
+          const imageData = jsonResponse.image || jsonResponse.imageUrl || jsonResponse.base64
+          return imageData
+        }
+      } catch (e) {
+        if (responseText.startsWith('data:image/') || responseText.startsWith('http')) {
+          return responseText
+        }
+      }
+    }
+    
+    return null
+    
+  } catch (error) {
+    return null
+  }
+}
+
+// Send webhook - for sending final images to user
+export const sendToSendWebhook = async (formData: FormData): Promise<boolean> => {
+  const SEND_WEBHOOK_URL = 'https://primary-production-b68a.up.railway.app/webhook/send'
+  
+  console.log('🚀 sendToSendWebhook called, making fetch to:', SEND_WEBHOOK_URL);
+  
+  try {
+    const response = await fetch(SEND_WEBHOOK_URL, {
+      method: 'POST',
+      body: formData
+    })
+    
+    console.log('📡 sendToSendWebhook response:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
+    
+    return response.ok
+  } catch (error) {
+    console.error('❌ Send webhook failed:', error)
+    return false
+  }
+}
+
+// Final message webhook - triggered after send completes
+export const sendToFinalMessageWebhook = async (formData: FormData): Promise<boolean> => {
+  const FINAL_MESSAGE_URL = 'https://primary-production-b68a.up.railway.app/webhook/final_message'
+  
+  console.log('🚀 sendToFinalMessageWebhook called, making fetch to:', FINAL_MESSAGE_URL);
+  
+  try {
+    const response = await fetch(FINAL_MESSAGE_URL, {
+      method: 'POST',
+      body: formData
+    })
+    
+    console.log('📡 sendToFinalMessageWebhook response:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
+    
+    return response.ok
+  } catch (error) {
+    console.error('❌ Final message webhook failed:', error)
+    return false
   }
 }
 
