@@ -1,4 +1,18 @@
 # Changelog
+## [1.1.6] - 2024-12-19
+### Fixed
+- **Environment Variable Configuration**: Fixed missing required environment variables causing blank screen
+  - Added proper validation for VITE_SUPABASE_ANON_KEY and VITE_OPENAI_API_KEY
+  - Enhanced configuration error handling with user-friendly error messages
+  - Updated deployment documentation for Netlify environment variable setup
+  - Improved startup error display with detailed configuration guidance
+
+### Technical
+- Enhanced config.ts validation to catch missing environment variables early
+- Added comprehensive error handling for configuration issues
+- Updated main.tsx to display user-friendly configuration error messages
+- Improved deployment setup documentation
+
 ## [1.1.5] - 2024-12-19
 ### Added
 - **AI-Powered Fortune Generation**: Integrated OpenAI GPT-4o-mini for creative Indonesian fortunes
