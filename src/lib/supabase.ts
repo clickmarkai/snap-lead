@@ -594,6 +594,25 @@ export const getAllDrinks = async (): Promise<DrinkMenu[]> => {
   }
 };
 
+// Get a random drink from the database
+export const getRandomDrink = async (): Promise<DrinkMenu | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('updated_drink_menu')
+      .select('*');
+    
+    if (error || !data || data.length === 0) {
+      return null;
+    }
+    
+    // Pick a random drink from the array
+    const randomIndex = Math.floor(Math.random() * data.length);
+    return data[randomIndex];
+  } catch (error) {
+    return null;
+  }
+};
+
 // Fortune functions
 export const getFortuneByMood = async (mood: string): Promise<Fortune | null> => {
   try {

@@ -1,4 +1,29 @@
 # Changelog
+## [1.1.7] - 2024-12-19
+### Added
+- **Random Drink Selection**: Implemented database-driven drink selection instead of webhook response
+  - Added `getRandomDrink()` function to query all drinks from `updated_drink_menu` table
+  - Random drink selection ensures variety and consistent user experience
+  - Drink selection is no longer dependent on webhook analysis response
+  - All webhook calls (gen-ai, gen-ingredients, send, final_message) now use random drink
+  - Complete integration across analysis results, response images, and all processing steps
+
+### Changed
+- **Analysis Flow**: Modified drink selection logic to use database instead of webhook response
+  - Updated `saveLead` function to fetch random drink from database
+  - Modified background generation functions to use random drink data
+  - Updated auto-send functions to include random drink in webhook payloads
+  - Enhanced style regeneration to use random drink instead of webhook response
+  - Updated all dependency arrays to include `drinkDetails` for proper reactivity
+
+### Technical
+- Added `getRandomDrink()` function in supabase.ts for database-driven drink selection
+- Updated CameraCapture component imports to include new function
+- Modified all webhook integration points to use random drink data
+- Enhanced state management to properly handle random drink selection
+- Updated dependency arrays across multiple functions for proper reactivity
+- Improved error handling for drink selection and display
+
 ## [1.1.6] - 2024-12-19
 ### Fixed
 - **Environment Variable Configuration**: Fixed missing required environment variables causing blank screen

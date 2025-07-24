@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { createLead, analyzeImageWithN8N, getDrinkByName, DrinkMenu, base64ToBlob, sendToN8NWebhook, sendToGenIngredientsWebhook, sendToSendWebhook, sendToFinalMessageWebhook, getFortuneByMood, Fortune, generateCreativeFortune } from '@/lib/supabase';
+import { createLead, analyzeImageWithN8N, getDrinkByName, getRandomDrink, DrinkMenu, base64ToBlob, sendToN8NWebhook, sendToGenIngredientsWebhook, sendToSendWebhook, sendToFinalMessageWebhook, getFortuneByMood, Fortune, generateCreativeFortune } from '@/lib/supabase';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -355,14 +355,21 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
         setAnalysisResults(analysisResults);
         analysisSuccessful = true;
         
-        // Fetch drink details if drink name is available
-        if (analysisResults.drink) {
-          try {
-            const drinkInfo = await getDrinkByName(analysisResults.drink);
-            setDrinkDetails(drinkInfo);
-          } catch (error) {
+        // Get a random drink from the database instead of using webhook response
+        try {
+          const randomDrink = await getRandomDrink();
+          if (randomDrink) {
+            setDrinkDetails(randomDrink);
+            // Update the analysis results with the random drink name
+            setAnalysisResults(prev => ({
+              ...prev,
+              drink: randomDrink.name
+            }));
+          } else {
             setDrinkDetails(null);
           }
+        } catch (error) {
+          setDrinkDetails(null);
         }
         
         // Fetch fortune data if mood is available
@@ -439,6 +446,12 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       const category = constructCategory(preCaptureData.coffeePreference, preCaptureData.alcoholPreference);
       
       // Use placeholder email/phone for background generation
+      // Use the random drink from drinkDetails instead of analysisResults
+      const updatedAnalysisResults = drinkDetails ? {
+        ...analysisResults,
+        drink: drinkDetails.name
+      } : analysisResults;
+      
       const responseImage = await sendToN8NWebhook(
         'placeholder@email.com', // Will be replaced when user submits
         '+1234567890', // Will be replaced when user submits
@@ -448,7 +461,7 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
         preCaptureData.coffeePreference,
         preCaptureData.alcoholPreference,
         category,
-        analysisResults,
+        updatedAnalysisResults,
         undefined
       );
       
@@ -474,7 +487,7 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       // Don't mark as completed here - only mark as completed after successful send
       setIsBackgroundGenerating(false);
     }
-  }, [capturedPhoto, preCaptureData, analysisResults, constructCategory]);
+  }, [capturedPhoto, preCaptureData, analysisResults, drinkDetails, constructCategory]);
 
   // Auto-send gen-ai image to webhook/send
   const autoSendGenAiImage = useCallback(async (genAiImageUrl: string) => {
@@ -501,12 +514,17 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       formData.append('alcoholPreference', preCaptureData.alcoholPreference);
       formData.append('category', category);
       
-      // Add analysis results if available
+      // Add analysis results if available, using random drink instead of webhook response
       if (analysisResults) {
-        formData.append('analysisResults', JSON.stringify(analysisResults));
-        if (analysisResults.mood) formData.append('mood', analysisResults.mood);
-        if (analysisResults.age) formData.append('age', analysisResults.age);
-        if (analysisResults.drink) formData.append('recommendedDrink', analysisResults.drink);
+        const updatedAnalysisResults = drinkDetails ? {
+          ...analysisResults,
+          drink: drinkDetails.name
+        } : analysisResults;
+        
+        formData.append('analysisResults', JSON.stringify(updatedAnalysisResults));
+        if (updatedAnalysisResults.mood) formData.append('mood', updatedAnalysisResults.mood);
+        if (updatedAnalysisResults.age) formData.append('age', updatedAnalysisResults.age);
+        if (updatedAnalysisResults.drink) formData.append('recommendedDrink', updatedAnalysisResults.drink);
       }
       
       // Add timestamp
@@ -550,7 +568,7 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     } catch (error) {
       console.error('❌ Auto-send gen-ai failed:', error);
     }
-  }, [leadFormData, preCaptureData, analysisResults, constructCategory]);
+  }, [leadFormData, preCaptureData, analysisResults, drinkDetails, constructCategory]);
 
   // Auto-send gen-ingredients image to webhook/send
   const autoSendGenIngredientsImage = useCallback(async (genIngredientsImageUrl: string) => {
@@ -577,12 +595,17 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       formData.append('alcoholPreference', preCaptureData.alcoholPreference);
       formData.append('category', category);
       
-      // Add analysis results if available
+      // Add analysis results if available, using random drink instead of webhook response
       if (analysisResults) {
-        formData.append('analysisResults', JSON.stringify(analysisResults));
-        if (analysisResults.mood) formData.append('mood', analysisResults.mood);
-        if (analysisResults.age) formData.append('age', analysisResults.age);
-        if (analysisResults.drink) formData.append('recommendedDrink', analysisResults.drink);
+        const updatedAnalysisResults = drinkDetails ? {
+          ...analysisResults,
+          drink: drinkDetails.name
+        } : analysisResults;
+        
+        formData.append('analysisResults', JSON.stringify(updatedAnalysisResults));
+        if (updatedAnalysisResults.mood) formData.append('mood', updatedAnalysisResults.mood);
+        if (updatedAnalysisResults.age) formData.append('age', updatedAnalysisResults.age);
+        if (updatedAnalysisResults.drink) formData.append('recommendedDrink', updatedAnalysisResults.drink);
       }
       
       // Add timestamp
@@ -629,7 +652,7 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
     } catch (error) {
       console.error('❌ Auto-send gen-ingredients failed:', error);
     }
-  }, [leadFormData, preCaptureData, analysisResults, constructCategory]);
+  }, [leadFormData, preCaptureData, analysisResults, drinkDetails, constructCategory]);
 
   // Gen-ingredients background generation function
   const startGenIngredientsGeneration = useCallback(async () => {
@@ -662,6 +685,12 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       const category = constructCategory(preCaptureData.coffeePreference, preCaptureData.alcoholPreference);
       
       // Use placeholder email/phone for background generation
+      // Use the random drink from drinkDetails instead of analysisResults
+      const updatedAnalysisResults = drinkDetails ? {
+        ...analysisResults,
+        drink: drinkDetails.name
+      } : analysisResults;
+      
       const responseImage = await sendToGenIngredientsWebhook(
         'placeholder@email.com', // Will be replaced when user submits
         '+1234567890', // Will be replaced when user submits
@@ -671,7 +700,7 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
         preCaptureData.coffeePreference,
         preCaptureData.alcoholPreference,
         category,
-        analysisResults,
+        updatedAnalysisResults,
         undefined
       );
       
@@ -697,7 +726,7 @@ export const CameraCapture = ({ onPhotoTaken, onLeadSaved }: CameraCaptureProps)
       // Don't mark as completed here - only mark as completed after successful send
       setIsGenIngredientsGenerating(false);
     }
-  }, [capturedPhoto, preCaptureData, analysisResults, constructCategory]);
+  }, [capturedPhoto, preCaptureData, analysisResults, drinkDetails, constructCategory]);
 
   const proceedToLeadForm = useCallback(() => {
     console.log('🚪 proceedToLeadForm called - showing lead form and starting background generations');
@@ -1055,6 +1084,12 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
       const category = constructCategory(preCaptureData.coffeePreference, preCaptureData.alcoholPreference);
       
       // Call GEN-AI webhook with the selected style (NOT gen-ingredients)
+      // Use the random drink from drinkDetails instead of analysisResults
+      const updatedAnalysisResults = drinkDetails ? {
+        ...analysisResults,
+        drink: drinkDetails.name
+      } : analysisResults;
+      
       const responseImage = await sendToN8NWebhook(
         leadFormData.email,
         leadFormData.whatsapp,
@@ -1064,7 +1099,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
         preCaptureData.coffeePreference,
         preCaptureData.alcoholPreference,
         category,
-        analysisResults,
+        updatedAnalysisResults,
         selectedStyleName // Pass the selected style as drinkDescription parameter
       );
       
@@ -1094,7 +1129,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
       setIsRegenerating(false);
       setSelectedStyle(''); // Reset selection
     }
-  }, [selectedStyle, capturedPhoto, hasRegenerated, styleOptions, showAlert, onLeadSaved, leadFormData, preCaptureData, analysisResults, constructCategory, autoSendGenAiImage]);
+  }, [selectedStyle, capturedPhoto, hasRegenerated, styleOptions, showAlert, onLeadSaved, leadFormData, preCaptureData, analysisResults, drinkDetails, constructCategory, autoSendGenAiImage]);
 
   // Add a function to re-generate the personalized image (keep original for backward compatibility)
   const reGenerateImage = useCallback(async () => {
@@ -1106,6 +1141,12 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
       const imageBlob = base64ToBlob(capturedPhoto, 'image/jpeg');
       const category = constructCategory(preCaptureData.coffeePreference, preCaptureData.alcoholPreference);
       // Always call the generate webhook again to get a new image
+      // Use the random drink from drinkDetails instead of analysisResults
+      const updatedAnalysisResults = drinkDetails ? {
+        ...analysisResults,
+        drink: drinkDetails.name
+      } : analysisResults;
+      
       const responseImage = await sendToN8NWebhook(
         leadFormData.email,
         leadFormData.whatsapp,
@@ -1115,7 +1156,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
         preCaptureData.coffeePreference,
         preCaptureData.alcoholPreference,
         category,
-        analysisResults,
+        updatedAnalysisResults,
         undefined // No drink description
       );
       setShowProcessingScreen(false);
@@ -1134,7 +1175,7 @@ Alcohol Preference: ${preCaptureData.alcoholPreference}`.trim(),
     } finally {
       setIsRegenerating(false);
     }
-  }, [capturedPhoto, leadFormData, preCaptureData, analysisResults, constructCategory, showAlert, onLeadSaved]);
+  }, [capturedPhoto, leadFormData, preCaptureData, analysisResults, drinkDetails, constructCategory, showAlert, onLeadSaved]);
 
   // Add email and phone validation helpers at the top of the component
   const validateEmail = (email: string) => {
